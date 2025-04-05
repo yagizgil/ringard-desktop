@@ -1,0 +1,100 @@
+[
+    {
+      "id": "account-setup",
+      "name": "Hesap Aç",
+      "description": "Hesabını oluştur ve giriş yap.",
+      "category": "general",
+      "rarity": "common"
+    },
+    {
+      "id": "profile-complete",
+      "name": "Profil Tamam",
+      "description": "Profil fotoğrafı ve biyografi bilgilerini doldur.",
+      "category": "general",
+      "rarity": "common"
+    },
+    {
+      "id": "first-friend",
+      "name": "İlk Arkadaş",
+      "description": "İlk arkadaşını ekle.",
+      "category": "social",
+      "rarity": "common"
+    },
+    {
+      "id": "chat-expert",
+      "name": "Sohbet Ustası",
+      "description": "Bir günde 200'den fazla mesaj gönder.",
+      "category": "chat",
+      "rarity": "epic"
+    },
+    {
+      "id": "voice-join",
+      "name": "Ses Katıl",
+      "description": "İlk kez bir sesli kanala katıl.",
+      "category": "voice",
+      "rarity": "common"
+    },
+    {
+      "id": "long-call",
+      "name": "Uzun Sohbet",
+      "description": "Sesli bir sohbette 3 saat kesintisiz kal.",
+      "category": "voice",
+      "rarity": "rare"
+    },
+    {
+      "id": "video-chat",
+      "name": "Görüntü Aç",
+      "description": "İlk görüntülü görüşmeni yap.",
+      "category": "video",
+      "rarity": "rare"
+    },
+    {
+      "id": "server-owner",
+      "name": "Sunucu Kur",
+      "description": "İlk sunucunu oluştur.",
+      "category": "server",
+      "rarity": "common"
+    },
+    {
+      "id": "moderator-role",
+      "name": "Yönetici Ol",
+      "description": "Bir sunucuda moderatör ya da yönetici rolü al.",
+      "category": "server",
+      "rarity": "rare"
+    },
+    {
+      "id": "post-first",
+      "name": "İlk Paylaşım",
+      "description": "Sosyal akışta ilk gönderini yap.",
+      "category": "social",
+      "rarity": "common"
+    },
+    {
+      "id": "post-popular",
+      "name": "Beğeni Yağmuru",
+      "description": "Bir gönderin 5 farklı kullanıcı tarafından beğenildi.",
+      "category": "social",
+      "rarity": "rare"
+    },
+    {
+      "id": "night-active",
+      "name": "Gece Nöbeti",
+      "description": "Saat 02:00 ile 04:00 arasında aktif ol.",
+      "category": "hidden",
+      "rarity": "epic"
+    },
+    {
+      "id": "silent-hour",
+      "name": "Sessiz Saat",
+      "description": "5 dakika boyunca bir ses kanalında hiç konuşmadan kal.",
+      "category": "hidden",
+      "rarity": "rare"
+    },
+    {
+      "id": "global-roamer",
+      "name": "Dünya Gezgini",
+      "description": "Konumunu Türkiye dışındaki bir ülkeyle değiştir.",
+      "category": "hidden",
+      "rarity": "legendary"
+    }
+  ]
