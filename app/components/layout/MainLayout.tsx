@@ -276,7 +276,7 @@ export default function MainLayout({
       {/* Users Sidebar - 280px */}
       <aside className={`
         fixed lg:sticky top-0 right-0
-        w-[280px] h-screen
+        w-[300px] h-screen
         bg-[var(--surface)]
         shadow-[-4px_0_var(--shadow-md)]
         transition-transform duration-300

@@ -1,7 +1,8 @@
 'use client';
-
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { deleteCookie } from 'cookies-next';
 import {
   User,
   Bell,
@@ -85,6 +86,18 @@ export default function SettingsPage() {
 
   const activeSettings = settingsCategories.find(cat => cat.id === activeCategory);
 
+  const router = useRouter();
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('refresh_token');
+    deleteCookie('access_token');
+    deleteCookie('refresh_token');
+    deleteCookie('user_id');
+    router.push('/login');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[var(--surface)] to-[var(--card)]">
       {/* Header */}
@@ -146,6 +159,15 @@ export default function SettingsPage() {
                   <span>{category.name}</span>
                 </button>
               ))}
+              <hr className="border-white/10 my-4" />
+
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 p-3 rounded-xl text-red-500/60 hover:text-red-500 hover:bg-red-500/10 transition-colors duration-200"
+              >
+                <ArrowLeft className="w-5 h-5 rotate-180" />
+                <span>Çıkış Yap</span>
+              </button>
             </nav>
           </div>
 

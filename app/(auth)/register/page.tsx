@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Mail, Lock, User } from 'lucide-react';
+import { register } from '@/app/lib/api';
+import { setCookie } from 'cookies-next';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -40,12 +42,28 @@ export default function Register() {
       setPasswordStrength(calculatePasswordStrength(value));
     }
   };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement register logic
+  
+    try {
+      const response = await register(formData.username, formData.password);
+  
+      if (response.access_token && response.refresh_token && response.user_id) {
+        setCookie('access_token', response.access_token);
+        setCookie('refresh_token', response.refresh_token);
+        setCookie('user_id', response.user_id);
+  
+        window.location.href = '/';
+      } else {
+        alert('Kayıt başarısız oldu.');
+      }
+    } catch (error) {
+      console.error('Register error:', error);
+      alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   };
-
+  
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Animated background effects */}
