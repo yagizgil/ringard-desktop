@@ -42,6 +42,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/canvas-confetti": "^1.6.4",
+    "@types/node": "^22.14.0",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
     "autoprefixer": "^10.4.21",
