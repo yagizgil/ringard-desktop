@@ -182,13 +182,50 @@ export default function Home() {
 
               {/* Stories Horizontal Scroll */}
               <div className="relative">
-                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none">
+                <div 
+                  className="flex gap-4 overflow-x-auto pb-4 scrollbar-none cursor-grab active:cursor-grabbing select-none"
+                  onMouseDown={(e) => {
+                    // Prevent default to avoid text selection
+                    e.preventDefault();
+                    
+                    const slider = e.currentTarget;
+                    const startX = e.pageX - slider.offsetLeft;
+                    const scrollLeft = slider.scrollLeft;
+                    
+                    // Add a dragging class to the slider
+                    slider.classList.add('dragging');
+                    
+                    const handleMouseMove = (e: MouseEvent) => {
+                      e.preventDefault();
+                      const x = e.pageX - slider.offsetLeft;
+                      const walk = (x - startX) * 2; // Scroll speed multiplier
+                      slider.scrollLeft = scrollLeft - walk;
+                    };
+                    
+                    const handleMouseUp = () => {
+                      // Remove the dragging class when done
+                      slider.classList.remove('dragging');
+                      document.removeEventListener('mousemove', handleMouseMove);
+                      document.removeEventListener('mouseup', handleMouseUp);
+                    };
+                    
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                  }}
+                  onClick={(e) => {
+                    // Prevent click events from firing when dragging
+                    if (e.detail > 1) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
                   {SAMPLE_STORIES.map((story) => (
                     <div
                       key={story.id}
-                      className="group cursor-pointer flex-shrink-0 w-[200px]"
+                      className="group flex-shrink-0 w-[200px] [.dragging_&]:cursor-grabbing cursor-pointer"
                     >
                       <div className="relative aspect-[4/5] rounded-2xl overflow-hidden">
+                        {/* Rest of the story component remains unchanged */}
                         {/* Story Background */}
                         <div className="absolute inset-0">
                           <Image
