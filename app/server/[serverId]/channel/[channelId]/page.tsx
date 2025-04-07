@@ -13,11 +13,18 @@ export default function ChannelPage() {
   const params = useParams();
   const channelId = params.channelId as string;
 
+  // Channel types array
+  const channelTypes = ['announcement', 'blog', 'support', 'text'];
+  
+  // Use the channelId to determine which type to show (ensures consistent behavior for same channel)
+  // This will cycle through types based on the numeric value of the channelId
+  const typeIndex = parseInt(channelId.replace(/\D/g, '')) % channelTypes.length || 0;
+  
   // Örnek kanal bilgileri - Bu kısım gerçek uygulamada API'den gelecek
   const channel: Channel = {
     id: channelId,
     name: 'Destek',
-    type: 'blog',
+    type: channelTypes[typeIndex] as 'announcement' | 'blog' | 'support' | 'text',
     topic: 'Destek Talepleri'
   };
 

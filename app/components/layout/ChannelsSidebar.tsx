@@ -178,7 +178,7 @@ export default function ChannelsSidebar() {
                 <Link
                   key={channel.id}
                   href={`/server/${SERVER_DATA.id}/channel/${channel.id}`}
-                  className={`flex items-center gap-2 px-2 py-1.5 rounded-md group ${
+                  className={`flex items-center gap-2 px-2 py-1.5 my-1 rounded-md group ${
                     currentChannelId === channel.id
                       ? 'bg-[var(--primary)] text-white'
                       : 'hover:bg-white/5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'

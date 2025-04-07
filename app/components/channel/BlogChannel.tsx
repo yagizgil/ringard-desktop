@@ -310,9 +310,7 @@ export default function BlogChannel({ channelId, channelName, topic, isAdmin = f
             // Blog Kartları Görünümü
             <div className="max-w-6xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-
-
-
+                
                 {/* Blog Yazıları ve Reklamlar */}
                 {posts.map((post, index) => {
                   // Önce blog yazısını göster
@@ -352,7 +350,7 @@ export default function BlogChannel({ channelId, channelName, topic, isAdmin = f
                                 {post.author.name}
                               </span>
                               {post.author.role && (
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--primary)] bg-opacity-10 text-[var(--primary)]">
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--primary)] bg-opacity-10 text-[var(--primary-font)]">
                                   {post.author.role}
                                 </span>
                               )}
