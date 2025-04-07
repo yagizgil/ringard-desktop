@@ -13,7 +13,11 @@ import {
   User,
   Tag,
   MessageSquare,
-  BarChart3
+  BarChart3,
+  Reply,
+  Edit,
+  MoreVertical,
+  Paperclip
 } from 'lucide-react';
 
 // Tip tanımlamaları
@@ -60,31 +64,32 @@ interface SupportChannelProps {
 }
 
 // Örnek veriler
+// Replace the SAMPLE_TICKETS array with a deterministic version
 const SAMPLE_TICKETS: Ticket[] = Array(10).fill(null).map((_, index) => ({
   id: String(index + 1),
   title: `Destek Talebi #${index + 1}`,
   description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-  status: ['open', 'in_progress', 'closed'][Math.floor(Math.random() * 3)] as Ticket['status'],
-  priority: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)] as Ticket['priority'],
-  category: ['Teknik', 'Finansal', 'Genel'][Math.floor(Math.random() * 3)],
+  status: ['open', 'in_progress', 'closed'][index % 3] as Ticket['status'],
+  priority: ['low', 'medium', 'high'][index % 3] as Ticket['priority'],
+  category: ['Teknik', 'Finansal', 'Genel'][index % 3],
   createdAt: new Date(2025, 3, index + 1).toISOString(),
   updatedAt: new Date(2025, 3, index + 1).toISOString(),
   createdBy: {
-    id: String(Math.floor(Math.random() * 100)),
+    id: String(index + 100),
     name: `Kullanıcı ${index + 1}`,
     avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100`
   },
-  assignedTo: Math.random() > 0.5 ? {
+  assignedTo: index % 2 === 0 ? {
     id: 'admin1',
     name: 'Destek Ekibi',
     avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100`
   } : undefined,
-  messages: Array(Math.floor(Math.random() * 5) + 1).fill(null).map((_, i) => ({
+  messages: Array(index % 5 + 1).fill(null).map((_, i) => ({
     id: `${index}-${i}`,
     content: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
     createdAt: new Date(2025, 3, index + 1, i).toISOString(),
-    sender: Math.random() > 0.5 ? {
-      id: String(Math.floor(Math.random() * 100)),
+    sender: i % 2 === 0 ? {
+      id: String(index + 100),
       name: `Kullanıcı ${index + 1}`,
       avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100`,
       isAdmin: false
@@ -95,7 +100,9 @@ const SAMPLE_TICKETS: Ticket[] = Array(10).fill(null).map((_, index) => ({
       isAdmin: true
     }
   })),
-  tags: ['önemli', 'acil', 'bug'].sort(() => Math.random() - 0.5).slice(0, 2)
+  tags: index % 3 === 0 ? ['önemli', 'acil'] : 
+        index % 3 === 1 ? ['bug', 'acil'] : 
+        ['önemli', 'bug']
 }));
 
 export default function SupportChannel({ channelId, channelName, topic, isAdmin = false }: SupportChannelProps) {
@@ -105,6 +112,23 @@ export default function SupportChannel({ channelId, channelName, topic, isAdmin 
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState<Ticket['status'] | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  // Add fullscreen state
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // Add navigation functions
+  const navigateToNextTicket = () => {
+    if (!selectedTicket) return;
+    const currentIndex = filteredTickets.findIndex(t => t.id === selectedTicket.id);
+    const nextIndex = (currentIndex + 1) % filteredTickets.length;
+    setSelectedTicket(filteredTickets[nextIndex]);
+  };
+
+  const navigateToPrevTicket = () => {
+    if (!selectedTicket) return;
+    const currentIndex = filteredTickets.findIndex(t => t.id === selectedTicket.id);
+    const prevIndex = (currentIndex - 1 + filteredTickets.length) % filteredTickets.length;
+    setSelectedTicket(filteredTickets[prevIndex]);
+  };
 
   // İstatistikler
   const stats = {
@@ -407,75 +431,161 @@ export default function SupportChannel({ channelId, channelName, topic, isAdmin 
 
       {/* Sağ Panel - Talep Detayları */}
       {selectedTicket && (
-        <div className="w-[400px] h-full border-l border-white/5 bg-[var(--surface)] overflow-y-auto">
+        <div className={`${isFullScreen ? 'fixed inset-0 z-50' : 'w-[400px]'} h-full border-l border-white/5 bg-[var(--surface)] overflow-y-auto transition-all duration-300`}>
           <div className="p-4">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-[var(--text-primary)]">{selectedTicket.title}</h2>
-              <button
-                onClick={() => setSelectedTicket(null)}
-                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                <XCircle size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsFullScreen(!isFullScreen)}
+                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                  title={isFullScreen ? "Küçült" : "Tam Ekran"}
+                >
+                  {isFullScreen ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M8 3v3a2 2 0 0 1-2 2H3"></path>
+                      <path d="M21 8h-3a2 2 0 0 1-2-2V3"></path>
+                      <path d="M3 16h3a2 2 0 0 1 2 2v3"></path>
+                      <path d="M16 21v-3a2 2 0 0 1 2-2h3"></path>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 8V5a2 2 0 0 1 2-2h3"></path>
+                      <path d="M16 3h3a2 2 0 0 1 2 2v3"></path>
+                      <path d="M21 16v3a2 2 0 0 1-2 2h-3"></path>
+                      <path d="M8 21H5a2 2 0 0 1-2-2v-3"></path>
+                    </svg>
+                  )}
+                </button>
+                <button
+                  onClick={() => setSelectedTicket(null)}
+                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  <XCircle size={20} />
+                </button>
+              </div>
             </div>
 
+            {/* Navigation buttons - only visible in fullscreen mode */}
+            {isFullScreen && (
+              <div className="flex justify-between mb-4">
+                <button
+                  onClick={navigateToPrevTicket}
+                  className="p-2 rounded-lg bg-[var(--card)] hover:bg-[var(--card-hover)] text-[var(--text-secondary)]"
+                  title="Önceki Talep"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m15 18-6-6 6-6"></path>
+                  </svg>
+                </button>
+                <button
+                  onClick={navigateToNextTicket}
+                  className="p-2 rounded-lg bg-[var(--card)] hover:bg-[var(--card-hover)] text-[var(--text-secondary)]"
+                  title="Sonraki Talep"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m9 18 6-6-6-6"></path>
+                  </svg>
+                </button>
+              </div>
+            )}
+
             {/* Talep Bilgileri */}
-            <div className="space-y-4 mb-6">
-              <div className="flex items-center gap-2">
-                <Tag size={16} className="text-[var(--text-secondary)]" />
-                <span className="text-sm text-[var(--text-secondary)]">{selectedTicket.category}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <User size={16} className="text-[var(--text-secondary)]" />
-                <span className="text-sm text-[var(--text-secondary)]">{selectedTicket.createdBy.name}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock size={16} className="text-[var(--text-secondary)]" />
-                <span className="text-sm text-[var(--text-secondary)]">
-                  {new Date(selectedTicket.createdAt).toLocaleDateString('tr-TR', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </span>
+            <div className="bg-[var(--card)] rounded-lg p-3 mb-6">
+              <h3 className="text-sm font-medium text-[var(--text-primary)] mb-3">Talep Detayları</h3>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Tag size={16} className="text-[var(--text-secondary)]" />
+                  <span className="text-sm text-[var(--text-secondary)]">{selectedTicket.category}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <User size={16} className="text-[var(--text-secondary)]" />
+                  <span className="text-sm text-[var(--text-secondary)]">{selectedTicket.createdBy.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock size={16} className="text-[var(--text-secondary)]" />
+                  <span className="text-sm text-[var(--text-secondary)]">
+                    {new Date(selectedTicket.createdAt).toLocaleDateString('tr-TR', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Mesajlar */}
-            <div className="space-y-4 mb-6">
-              {selectedTicket.messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex gap-3 ${message.sender.isAdmin ? 'flex-row-reverse' : ''}`}
-                >
-                  <img
-                    src={message.sender.avatar}
-                    alt={message.sender.name}
-                    className="w-8 h-8 rounded-full"
-                  />
-                  <div className={`flex-1 ${message.sender.isAdmin ? 'text-right' : ''}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-[var(--text-primary)]">
-                        {message.sender.name}
-                      </span>
-                      <span className="text-xs text-[var(--text-secondary)]">
-                        {new Date(message.createdAt).toLocaleTimeString('tr-TR', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
-                    </div>
-                    <div className="text-sm text-[var(--text-secondary)]">{message.content}</div>
-                  </div>
-                </div>
-              ))}
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-[var(--text-primary)] mb-3">Mesajlar</h3>
+              <div className="space-y-4">
+                {selectedTicket.messages.map((message, index) => {
+                  // Check if this message is from the same sender as the previous one
+                  const isPreviousSameSender = index > 0 && 
+                    selectedTicket.messages[index - 1].sender.id === message.sender.id;
+                  
+                  return (
+                    <motion.div
+                      key={message.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="group flex gap-3 hover:bg-white/5 p-2 rounded-lg -mx-2"
+                    >
+                      <div className="flex-shrink-0">
+                        <img
+                          src={message.sender.avatar}
+                          alt={message.sender.name}
+                          className="w-8 h-8 rounded-full"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-sm text-[var(--text-primary)]">
+                            {message.sender.name}
+                          </span>
+                          {message.sender.isAdmin && (
+                            <span className="px-1.5 py-0.5 rounded text-xs bg-[var(--primary)] text-white">
+                              Destek
+                            </span>
+                          )}
+                          <span className="text-xs text-[var(--text-secondary)]">
+                            {new Date(message.createdAt).toLocaleTimeString('tr-TR', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap break-words">
+                          {message.content}
+                        </div>
+                        
+                      </div>
+                      <div className="flex items-start gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button className="p-1 rounded hover:bg-white/5 text-[var(--text-secondary)]" title="Yanıtla">
+                          <Reply size={14} />
+                        </button>
+                        {message.sender.isAdmin && (
+                          <button className="p-1 rounded hover:bg-white/5 text-[var(--text-secondary)]" title="Düzenle">
+                            <Edit size={14} />
+                          </button>
+                        )}
+                        <button className="p-1 rounded hover:bg-white/5 text-[var(--text-secondary)]" title="Daha Fazla">
+                          <MoreVertical size={14} />
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Yanıt Formu */}
             <div className="sticky bottom-0 bg-[var(--surface)] pt-4">
               <textarea
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
                 placeholder="Mesajınızı yazın..."
                 className="w-full h-20 px-3 py-2 text-sm bg-[var(--card)] text-[var(--text-primary)] rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               />
@@ -491,7 +601,10 @@ export default function SupportChannel({ channelId, channelName, topic, isAdmin 
                     <option value="closed">Kapandı</option>
                   </select>
                 )}
-                <button className="px-4 py-1.5 bg-[var(--primary)] text-white text-sm rounded-lg hover:bg-[var(--primary-dark)] transition-colors">
+                <button 
+                  onClick={() => handleSendMessage(selectedTicket.id)}
+                  className="px-4 py-1.5 bg-[var(--primary)] text-white text-sm rounded-lg hover:bg-[var(--primary-dark)] transition-colors"
+                >
                   Gönder
                 </button>
               </div>
@@ -500,5 +613,4 @@ export default function SupportChannel({ channelId, channelName, topic, isAdmin 
         </div>
       )}
     </div>
-  );
-}
+  );}

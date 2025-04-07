@@ -166,7 +166,7 @@ export default function Home() {
 
   return (
     <MainLayout>
-      <div className="max-w-[1000px] w-full mx-auto py-4">
+      <div className="w-full mx-auto py-4">
         {activeTab === 'social' ? (
           <>
             {/* Stories Section */}
