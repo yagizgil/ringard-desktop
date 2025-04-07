@@ -116,13 +116,15 @@ export default function AnnouncementChannel({ channelId, channelName, topic, isA
             {/* Duyuru Başlığı */}
             <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Image
-                  src={announcement.author.avatar}
-                  alt={announcement.author.name}
-                  width={40}
-                  height={40}
-                  className="rounded-full ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[var(--surface)]"
-                />
+                <div className="relative w-10 h-10 rounded-full overflow-hidden ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[var(--surface)]">
+                  <Image
+                    src={announcement.author.avatar}
+                    alt={announcement.author.name}
+                    width={40}
+                    height={40}
+                    className="object-cover w-full h-full"
+                  />
+                </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-[var(--text-primary)]">
@@ -134,7 +136,11 @@ export default function AnnouncementChannel({ channelId, channelName, topic, isA
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-[var(--text-secondary)]">
+                  
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-secondary)]">
                     {new Intl.DateTimeFormat('tr-TR', {
                       day: '2-digit',
                       month: '2-digit',
@@ -144,15 +150,14 @@ export default function AnnouncementChannel({ channelId, channelName, topic, isA
                       second: '2-digit'
                     }).format(new Date(announcement.timestamp))}
                   </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
+                  
                 {announcement.pinned && (
                   <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-500 text-xs">
                     <Pin size={12} />
                     Sabitlendi
                   </span>
                 )}
+                
                 <button className="p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]">
                   <Share2 size={16} />
                 </button>
