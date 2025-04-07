@@ -5,6 +5,7 @@ import { MicOff, Headphones, Settings, Hash, Volume2, GamepadIcon, HelpCircle, T
 import Link from 'next/link';
 import MiniProfile from './MiniProfile';
 import { useParams } from 'next/navigation';
+import { useState } from 'react';
 
 type VoiceStatus = 'connected' | 'muted' | 'deafened' | 'disconnected';
 type ChannelType = 'announcement' | 'text' | 'voice' | 'game' | 'qa' | 'support' | 'blog';
@@ -119,6 +120,14 @@ const getChannelIcon = (type: ChannelType) => {
 export default function ChannelsSidebar() {
   const params = useParams();
   const currentChannelId = params.channelId as string;
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+
+  const toggleCategory = (categoryId: string) => {
+    setCollapsedCategories(prev => ({
+      ...prev,
+      [categoryId]: !prev[categoryId]
+    }));
+  };
 
   return (
     <div className="flex flex-col w-full h-full bg-[var(--surface)] w-[240px] border-r border-white/5">
@@ -165,15 +174,27 @@ export default function ChannelsSidebar() {
       </div>
 
       {/* Kategoriler ve Kanallar */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-4">
+      <div className="flex-1 overflow-y-auto p-2 space-y-2">
         {SERVER_DATA.categories.map((category) => (
-          <div key={category.id}>
-            <button className="w-full flex items-center gap-1 px-1 py-1 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group">
-              <ChevronDown size={12} className="flex-shrink-0" />
+          <div key={category.id} className='bg-[var(--background)] p-2 rounded-md'>
+            <button 
+              className="w-full flex items-center gap-1 px-1 py-1 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
+              onClick={() => toggleCategory(category.id)}
+            >
+              <ChevronDown 
+                size={12} 
+                className={`flex-shrink-0 transition-transform duration-200 ${
+                  collapsedCategories[category.id] ? '-rotate-90' : ''
+                }`} 
+              />
               <span className="uppercase tracking-wider">{category.name}</span>
               <Plus size={12} className="ml-auto opacity-0 group-hover:opacity-100" />
             </button>
-            <div className="mt-1 space-y-0.5">
+            <div className={`transition-all duration-200 ${
+              collapsedCategories[category.id] 
+                ? 'h-0 overflow-hidden opacity-0 m-0 p-0 border-none' 
+                : 'mt-1 space-y-0.5 opacity-100'
+            }`}>
               {category.channels.map((channel) => (
                 <Link
                   key={channel.id}
