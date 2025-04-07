@@ -17,7 +17,7 @@ export default function ChannelPage() {
   const channel: Channel = {
     id: channelId,
     name: 'Destek',
-    type: 'support',
+    type: 'blog',
     topic: 'Destek Talepleri'
   };
 

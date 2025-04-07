@@ -4,7 +4,8 @@
 
 :root {
   /* Turuncu Tema */
-  --primary: #FF6B00;
+  --primary: #ff6a00;
+  --primary-font: #ffffff;
   --primary-light: #FF8534;
   --primary-dark: #CC5500;
   --secondary: #FFE5D1;
@@ -41,6 +42,14 @@ body {
   transition: var(--transition-all);
 }
 
+.rounded-lg {
+  border-radius: 10px;
+  -webkit-border-radius: 10px;
+  -moz-border-radius: 10px;
+  -ms-border-radius: 10px;
+  -o-border-radius: 10px;
+}
+
 /* Scrollbar Stilleri */
 ::-webkit-scrollbar {
   width: 8px;
@@ -58,4 +67,91 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary-light);
+}
+
+/* Add these custom styles for the post creation section */
+.post-button {
+  @apply rounded-full px-4 py-2 font-medium transition-all duration-300 flex items-center gap-2;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.post-button:hover {
+  @apply transform scale-105 shadow-md;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.post-button-primary {
+  @apply bg-[var(--primary)] text-white;
+}
+
+.post-button-primary:hover {
+  @apply bg-[var(--primary-light)];
+}
+
+.post-area {
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.post-area:focus-within {
+  border-color: var(--primary);
+}
+
+.post-area-expanded {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 12px;
+  margin-top: 8px;
+}
+
+/* Improved animations */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 500px;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 500px;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+    max-height: 0;
+  }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s ease forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease forwards;
+}
+
+
+/* Add these styles for the toggle switches */
+input[type="checkbox"] + label span {
+  transform: translateX(0);
+}
+
+input[type="checkbox"]:checked + label {
+  background-color: var(--primary);
+}
+
+input[type="checkbox"]:checked + label span {
+  transform: translateX(100%);
+}
+
+input[type="checkbox"]:focus + label {
+  box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.3);
 }

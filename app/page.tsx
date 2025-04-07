@@ -279,22 +279,194 @@ export default function Home() {
             </div>
 
             {/* Create Post Section */}
-            <div className="mb-6 bg-[var(--surface)] rounded-xl shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)] transition-shadow duration-300">
-              <div className="flex gap-4 items-center p-4">
-                <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-white/10">
-                  <Image
-                    src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80"
-                    alt="Your avatar"
-                    width={40}
-                    height={40}
-                    className="object-cover w-full h-full"
-                  />
+            <div className="mb-6 bg-[var(--surface)] rounded-xl shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)] transition-all duration-300">
+              <div className="flex flex-col w-full">
+                {/* Collapsed Post Input */}
+                <div id="post-input-container" className="flex items-center p-4 gap-3">
+                  <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-white/10">
+                    <Image
+                      src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80"
+                      alt="Your avatar"
+                      width={40}
+                      height={40}
+                      className="object-cover w-full h-full"
+                    />
+                  </div>
+                  <div 
+                    className="flex-1 px-4 py-2 rounded-full bg-[var(--card)] text-[var(--text-secondary)] cursor-pointer hover:bg-[var(--card-hover)] transition-all text-sm"
+                    onClick={() => {
+                      const inputContainer = document.getElementById('post-input-container');
+                      const expandedArea = document.getElementById('expanded-post-area');
+                      
+                      if (expandedArea) {
+                        expandedArea.classList.remove('hidden');
+                        setTimeout(() => {
+                          const textarea = expandedArea.querySelector('textarea');
+                          if (textarea) textarea.focus();
+                        }, 100);
+                      }
+                      
+                      if (inputContainer) {
+                        inputContainer.classList.add('hidden');
+                      }
+                    }}
+                  >
+                    Bir gönderi oluştur...
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Bir gönderi oluştur..."
-                  className="flex-1 px-4 py-2 rounded-xl bg-[var(--card)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] outline-none focus:ring-2 ring-[var(--primary)] transition-all text-sm hover:bg-[var(--card-hover)]"
-                />
+                
+                {/* Expanded Post Area */}
+                <div id="expanded-post-area" className="hidden p-4">
+                  {/* Text Area */}
+                  <textarea 
+                    placeholder="Düşüncelerini paylaş..." 
+                    className="w-full min-h-[120px] p-3 rounded-xl bg-[var(--card)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] outline-none transition-all text-sm resize-none"
+                  />
+                  
+                  {/* Hashtag Input */}
+                  <input
+                    type="text"
+                    placeholder="Etiketler ekle (virgülle ayır: tasarım, teknoloji, vb.)"
+                    className="w-full p-2.5 mt-2 rounded-xl bg-[var(--card)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] outline-none transition-all text-xs"
+                  />
+                  
+                  {/* Toggle Options */}
+                  <div className="flex flex-wrap gap-4 mt-4">
+
+                  <label className="inline-flex items-center cursor-pointer">
+                      <div className="relative">
+                        <input type="checkbox" className="sr-only peer" />
+                        <div className="w-9 h-5 bg-[var(--card)] rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+                      </div>
+                      <span className="ms-2 text-xs font-medium text-[var(--text-secondary)]">Beğeni sayısını gizle</span>
+                    </label>
+
+
+                    <label className="inline-flex items-center cursor-pointer">
+                      <div className="relative">
+                        <input type="checkbox" className="sr-only peer" />
+                        <div className="w-9 h-5 bg-[var(--card)] rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+                      </div>
+                      <span className="ms-2 text-xs font-medium text-[var(--text-secondary)]">Yorumları kapat</span>
+                    </label>
+                    
+                    
+                    
+                    <label className="inline-flex items-center cursor-pointer">
+                      <div className="relative">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer" 
+                          id="schedule-toggle"
+                          onChange={(e) => {
+                            const dateTimePicker = document.getElementById('datetime-picker-container');
+                            if (dateTimePicker) {
+                              if (e.target.checked) {
+                                dateTimePicker.classList.remove('hidden');
+                              } else {
+                                dateTimePicker.classList.add('hidden');
+                              }
+                            }
+                          }}
+                        />
+                        <div className="w-9 h-5 bg-[var(--card)] rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+                      </div>
+                      <span className="ms-2 text-xs font-medium text-[var(--text-secondary)]">İleri tarihli paylaşım</span>
+                    </label>
+                  </div>
+                  
+                  {/* DateTime Picker Container */}
+                  <div id="datetime-picker-container" className="hidden mt-3 p-3 bg-[var(--card)] rounded-xl">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs text-[var(--text-secondary)]">Paylaşım zamanını seçin</label>
+                      <input
+                        type="datetime-local"
+                        className="w-full p-2 text-xs bg-[var(--surface)] text-[var(--text-primary)] rounded-lg border border-white/10 outline-none focus:border-[var(--primary)]"
+                        onChange={(e) => {
+                          const selectedDate = new Date(e.target.value);
+                          const now = new Date();
+                          
+                          if (selectedDate <= now) {
+                            alert("Lütfen gelecekte bir tarih seçin");
+                            e.target.value = "";
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Attachment Buttons */}
+                  <div className="flex flex-wrap gap-2 mt-4 border-t border-white/5 pt-4">
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--card)] hover:bg-[var(--card-hover)] transition-all text-xs text-[var(--text-secondary)]">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <polyline points="21 15 16 10 5 21" />
+                      </svg>
+                      Fotoğraf
+                    </button>
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--card)] hover:bg-[var(--card-hover)] transition-all text-xs text-[var(--text-secondary)]">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <polyline points="10 9 9 9 8 9" />
+                      </svg>
+                      Dosya
+                    </button>
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--card)] hover:bg-[var(--card-hover)] transition-all text-xs text-[var(--text-secondary)]">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
+                      Etkinlik
+                    </button>
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--card)] hover:bg-[var(--card-hover)] transition-all text-xs text-[var(--text-secondary)]">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                      Konum
+                    </button>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex justify-end gap-2 mt-4">
+                    <button 
+                      className="px-3 py-1.5 rounded-full bg-[var(--card)] hover:bg-[var(--card-hover)] transition-all text-xs text-[var(--text-secondary)]"
+                      onClick={() => {
+                        const inputContainer = document.getElementById('post-input-container');
+                        const expandedArea = document.getElementById('expanded-post-area');
+                        const dateTimePicker = document.getElementById('datetime-picker-container');
+                        const scheduleToggle = document.getElementById('schedule-toggle') as HTMLInputElement;
+                        
+                        if (expandedArea) {
+                          expandedArea.classList.add('hidden');
+                        }
+                        
+                        if (inputContainer) {
+                          inputContainer.classList.remove('hidden');
+                        }
+                        
+                        if (dateTimePicker) {
+                          dateTimePicker.classList.add('hidden');
+                        }
+                        
+                        if (scheduleToggle) {
+                          scheduleToggle.checked = false;
+                        }
+                      }}
+                    >
+                      İptal
+                    </button>
+                    <button className="px-3 py-1.5 rounded-full bg-[var(--primary)] hover:bg-[var(--primary-light)] transition-all text-xs text-white font-medium">
+                      Paylaş
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -345,7 +517,7 @@ export default function Home() {
                         {post.tags.map((tag) => (
                           <span 
                             key={tag}
-                            className="text-xs font-medium text-[var(--primary)] bg-[var(--primary-light)] px-2.5 py-1 rounded-full hover:bg-[var(--primary-light-hover)] transition-colors cursor-pointer"
+                            className="text-xs font-medium text-[var(--primary-font)] bg-[var(--primary-light)] px-2.5 py-1 rounded-full hover:bg-[var(--primary-light-hover)] transition-colors cursor-pointer"
                           >
                             #{tag}
                           </span>
@@ -405,5 +577,4 @@ export default function Home() {
         )}
       </div>
     </MainLayout>
-  );
-}
+  );}
