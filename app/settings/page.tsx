@@ -1,8 +1,9 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { deleteCookie } from 'cookies-next';
+import { deleteCookie, getCookie } from 'cookies-next';
+import ThemeToggle from '@/app/components/ThemeToggle';
 import {
   User,
   Bell,
@@ -88,6 +89,12 @@ export default function SettingsPage() {
 
   const router = useRouter();
 
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setUserId(getCookie('user_id') as string)
+  }, [])
+
   const handleLogout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user_id');
@@ -99,38 +106,19 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[var(--surface)] to-[var(--card)]">
+    <div className="min-h-screen bg-gray-400 dark:bg-[var(--surface)]">
       {/* Header */}
-      <header className="sticky top-0 z-10 backdrop-blur-xl bg-[var(--surface)]/80 border-b border-white/10">
+      <header className="sticky top-0 z-10 backdrop-blur-xl bg-gray-400 dark:bg-[var(--surface)]/80 border-b dark:border-white/10 border-black/10">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2 text-white/60 hover:text-white transition-colors">
+            <Link href="/" className="flex items-center gap-2 text-black/60 hover:text-black dark:text-white/60 dark:hover:text-white transition-colors">
               <ArrowLeft className="w-6 h-6" />
               <span>Ana Sayfa</span>
             </Link>
-            <h1 className="text-xl font-semibold text-white">Ayarlar</h1>
+            <h1 className="text-xl font-semibold text-black dark:text-white">Ayarlar</h1>
           </div>
           
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setTheme('system')}
-              className={`p-2 rounded-xl ${theme === 'system' ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white'}`}
-            >
-              <Monitor className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setTheme('light')}
-              className={`p-2 rounded-xl ${theme === 'light' ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white'}`}
-            >
-              <Sun className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setTheme('dark')}
-              className={`p-2 rounded-xl ${theme === 'dark' ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white'}`}
-            >
-              <Moon className="w-5 h-5" />
-            </button>
-          </div>
+          <ThemeToggle/>
         </div>
       </header>
 
@@ -151,7 +139,7 @@ export default function SettingsPage() {
                   }}
                   className={`
                     w-full flex items-center gap-3 p-3 rounded-xl
-                    ${activeCategory === category.id ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white'}
+                    ${activeCategory === category.id ? 'dark:bg-white/10 dark:text-white text-black bg-black/10' : 'dark:text-white/60 dark:hover:text-white text-black/60 hover:text-black hover:bg-black/5'}
                     transition-colors duration-200
                   `}
                 >
@@ -159,11 +147,11 @@ export default function SettingsPage() {
                   <span>{category.name}</span>
                 </button>
               ))}
-              <hr className="border-white/10 my-4" />
+              <hr className="border-black/10 dark:border-white/10 my-4" />
 
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 p-3 rounded-xl text-red-500/60 hover:text-red-500 hover:bg-red-500/10 transition-colors duration-200"
+                className="w-full flex items-center gap-3 p-3 rounded-xl text-red-500 hover:text-red-500/60 hover:bg-red-500/10 dark:text-red-500/60 dark:hover:text-red-500 dark:hover:bg-red-500/10 transition-colors duration-200"
               >
                 <ArrowLeft className="w-5 h-5 rotate-180" />
                 <span>Çıkış Yap</span>
@@ -185,22 +173,24 @@ export default function SettingsPage() {
                     exit={{ opacity: 0, y: 20 }}
                     className="
                       group p-4 rounded-2xl
-                      bg-white/5 hover:bg-white/10
-                      border border-white/10
+                      dark:bg-white/5 dark:hover:bg-white/10
+                      bg-black/5 hover:bg-black/10
+                      border border-black/10 dark:border-white/10
                       transition-colors duration-200
                       cursor-pointer
                     "
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-white font-medium">{item.name}</h3>
-                        <p className="text-sm text-white/60 mt-1">{item.description}</p>
+                        <h3 className="text-black dark:text-white font-medium">{item.name}</h3>
+                        <p className="text-sm text-black/60 dark:text-white/60 mt-1">{item.description}</p>
                       </div>
                       <ChevronRight className="w-5 h-5 text-white/40 group-hover:text-white/60 transition-colors" />
                     </div>
                   </motion.div>
                 </Link>
               ))}
+              <p>UID: {userId}</p>
             </div>
           </div>
         </div>
