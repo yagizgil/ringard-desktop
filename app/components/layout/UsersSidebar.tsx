@@ -349,7 +349,7 @@ export default function UsersSidebar() {
               <div className={`absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-500 opacity-10 group-hover:opacity-20 transition-opacity`} />
 
               {/* Content */}
-              <button onClick={() => router.push(`/profile/${friend.user_id}`)} className="relative p-3">
+              <button onClick={() => router.push(`/profile/${friend.username}`)} className="relative p-3">
                 <div className="flex items-center gap-3">
                   {/* Avatar & Status */}
                   <div className="relative flex-shrink-0">

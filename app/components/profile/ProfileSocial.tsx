@@ -58,48 +58,6 @@ const DUMMY_POSTS: Post[] = [
 const ProfileSocial: FC<ProfileSocialProps> = ({ profileId }) => {
   return (
     <div className="mx-auto space-y-6">
-      {/* Post Oluştur */}
-      <div className="bg-card rounded-xl shadow-sm border border-white/10">
-        <div className="p-4">
-          <div className="flex items-start gap-3">
-            <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
-              <Image
-                src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=400&auto=format&fit=crop"
-                alt="Your avatar"
-                fill
-                className="object-cover"
-              />
-            </div>
-            <div className="flex-1">
-              <Input
-                placeholder="Bir şeyler paylaş..."
-                className="bg-muted/30 border-none text-base py-6"
-              />
-            </div>
-          </div>
-        </div>
-
-        <Separator />
-
-        <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-0.5">
-            <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10 hover:text-primary">
-              <ImageIcon className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10 hover:text-primary">
-              <Smile className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10 hover:text-primary">
-              <Link2 className="w-5 h-5" />
-            </Button>
-          </div>
-          <Button className="rounded-full px-6">
-            <Send className="w-4 h-4 mr-2" />
-            Paylaş
-          </Button>
-        </div>
-      </div>
-
       {/* Posts */}
       <div className="space-y-4">
         {DUMMY_POSTS.map((post) => (
