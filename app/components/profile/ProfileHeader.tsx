@@ -1,9 +1,19 @@
-import { FC } from "react";
+import { FC, useState } from "react";
 import Image from "next/image";
-import { MapPin, Link as LinkIcon, Twitter, BadgeCheck, Globe, Code, Youtube, Shield, Camera } from "lucide-react";
+import { MapPin, Link as LinkIcon, Twitter, BadgeCheck, Globe, Code, Youtube, Shield, Camera, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon_url: string;
+  background_color: string;
+  created_at: string;
+}
 
 interface ProfileHeaderProps {
   username: string;
@@ -13,6 +23,7 @@ interface ProfileHeaderProps {
   following: number;
   posts: number;
   lastSeen: string;
+  badges?: Badge[];
 }
 
 const ProfileHeader: FC<ProfileHeaderProps> = ({
@@ -23,6 +34,7 @@ const ProfileHeader: FC<ProfileHeaderProps> = ({
   following,
   posts,
   lastSeen,
+  badges = [],
 }) => {
   return (
     <div className="relative rounded-2xl overflow-hidden bg-card border border-white/10 shadow-lg">
@@ -53,7 +65,7 @@ const ProfileHeader: FC<ProfileHeaderProps> = ({
             <div className="relative w-24 h-24 rounded-2xl overflow-hidden ring-4 ring-background shadow-xl">
               <Image
                 src={avatar}
-                alt={username}
+                alt={`${username}'s profile`}
                 fill
                 className="object-cover transition-transform duration-500 group-hover:scale-110"
                 priority
@@ -69,13 +81,38 @@ const ProfileHeader: FC<ProfileHeaderProps> = ({
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-2xl font-semibold">{username}</h2>
               <div className="flex gap-2">
-              <BadgeCheck className="w-6 h-6 bg-gradient-to-b from-blue-500 via-blue-600 to-blue-500 p-0.5 rounded-full" />
-                <Badge variant="secondary" className="gap-1.5 bg-green-500 rounded-full">
-                  <Code className="w-3.5 h-3.5" /> Geliştirici
-                </Badge>
-                <Badge variant="secondary" className="gap-1.5 bg-purple-600 rounded-full">
-                  <Youtube className="w-3.5 h-3.5" /> Yayıncı
-                </Badge>
+                {badges.length > 0 ? (
+                  <div className="flex gap-2">
+                    {badges.map((badge) => (
+                      <TooltipProvider key={badge.id}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className={`relative group cursor-pointer hover:scale-110 transition-all duration-300 hover:bg-black/30 rounded-full`}>
+                              <div className={cn("w-8 h-8 rounded-full flex items-center justify-center")}>
+                                <Image 
+                                  src={badge.icon_url} 
+                                  alt={badge.name}
+                                  width={28}
+                                  height={28}
+                                  className="object-contain"
+                                />
+                              </div>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <div className="space-y-1">
+                              <p className="font-semibold">{badge.name}</p>
+                              <p className="text-xs text-muted-foreground">{badge.description}</p>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                  </>
+                )}
               </div>
             </div>
 

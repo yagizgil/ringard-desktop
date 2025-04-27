@@ -33,10 +33,25 @@ interface UserProfile {
   message?: string;
 }
 
+interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon_url: string;
+  background_color: string;
+  created_at: string;
+}
+
+interface ApiResponse {
+  badges: Badge[];
+  data: UserProfile;
+}
+
 export default function ProfilePage() {
   const params = useParams();
   const profileId = params?.profileId as string;
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPrivate, setIsPrivate] = useState(false);
@@ -58,21 +73,22 @@ export default function ProfilePage() {
           return;
         }
 
-        const response = await fetch(`http://api.ringard.net/user/profile/${profileId}`, {
+        const response = await fetch(`http://localhost:8021/user/profile/${profileId}`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`
           }
         });
 
-        const data = await response.json();
-        if (response) {
-          setProfile(data);
+        const apiResponse: ApiResponse = await response.json();
+        if (response.ok) {
+          setProfile(apiResponse.data);
+          setBadges(apiResponse.badges);
           // Check if profile is private (has message property with specific text)
-          if (data.message === "This profile can only be viewed by friends") {
+          if (apiResponse.data.message === "This profile can only be viewed by friends") {
             setIsPrivate(true);
           }
         } else {
-          setError(data.message || 'Failed to fetch profile');
+          setError(apiResponse.data.message || 'Failed to fetch profile');
         }
       } catch (error) {
         setError('An error occurred while fetching the profile');
@@ -197,6 +213,7 @@ export default function ProfilePage() {
             following={0}
             posts={0}
             lastSeen={profile.last_online_at ? new Date(profile.last_online_at).toLocaleString('tr-TR') : 'Never'}
+            badges={badges}
           />
 
           {isPrivate ? (
