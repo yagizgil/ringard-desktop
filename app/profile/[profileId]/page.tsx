@@ -115,7 +115,7 @@ export default function ProfilePage() {
         return;
       }
 
-      const response = await fetch(`http://api.ringard.net/user/friends/u/add/${profileId}`, {
+      const response = await fetch(process.env.NEXT_PUBLIC_API_BASE_URL+`/user/friends/u/add/${profileId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -194,11 +194,11 @@ export default function ProfilePage() {
   }
 
   const avatarUrl = profile.avatar_id 
-    ? `http://api.ringard.net/user/avatar/${profile.avatar_id}` 
+    ? process.env.NEXT_PUBLIC_API_BASE_URL+`/user/avatar/${profile.avatar_id}` 
     : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=400&auto=format&fit=crop';
   
   const bannerUrl = profile.banner_id 
-    ? `http://api.ringard.net/user/banner/${profile.banner_id}` 
+    ? process.env.NEXT_PUBLIC_API_BASE_URL+`/user/banner/${profile.banner_id}` 
     : 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1200&auto=format&fit=crop';
 
   return (

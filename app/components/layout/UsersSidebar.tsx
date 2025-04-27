@@ -66,7 +66,7 @@ export default function UsersSidebar() {
         return;
       }
 
-      const response = await fetch('http://api.ringard.net/user/friends/requests', {
+      const response = await fetch(process.env.NEXT_PUBLIC_API_BASE_URL + '/user/friends/requests', {
         headers: {
           'Authorization': `Bearer ${accessToken}`
         }
@@ -95,7 +95,7 @@ export default function UsersSidebar() {
         return;
       }
 
-      const response = await fetch(`http://api.ringard.net/user/friends/accept/${userId}`, {
+      const response = await fetch(process.env.NEXT_PUBLIC_API_BASE_URL+`/user/friends/accept/${userId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -127,7 +127,7 @@ export default function UsersSidebar() {
         return;
       }
 
-      const response = await fetch(`http://api.ringard.net/user/friends/reject/${userId}`, {
+      const response = await fetch(process.env.NEXT_PUBLIC_API_BASE_URL+`/user/friends/reject/${userId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -163,7 +163,7 @@ export default function UsersSidebar() {
         return;
       }
 
-      const response = await fetch(`http://api.ringard.net/user/friends/add/${newFriendId}`, {
+      const response = await fetch(process.env.NEXT_PUBLIC_API_BASE_URL+`/user/friends/add/${newFriendId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -198,7 +198,7 @@ export default function UsersSidebar() {
         return;
       }
 
-      const response = await fetch('http://api.ringard.net/user/friends', {
+      const response = await fetch(process.env.NEXT_PUBLIC_API_BASE_URL+'/user/friends', {
         headers: {
           'Authorization': `Bearer ${accessToken}`
         }
@@ -291,7 +291,7 @@ export default function UsersSidebar() {
               {/* Sol taraf - avatar + isim */}
               <div className="flex items-center gap-3">
                 <Image
-                  src={req.avatar_id ? `http://api.ringard.net/user/avatar/${req.avatar_id}` : '/default-avatar.png'}
+                  src={req.avatar_id ? process.env.NEXT_PUBLIC_API_BASE_URL+`/user/avatar/${req.avatar_id}` : '/default-avatar.png'}
                   alt={req.username}
                   width={40}
                   height={40}
@@ -340,7 +340,7 @@ export default function UsersSidebar() {
               {/* Background Image & Gradient */}
               <div className="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity">
                 <Image
-                  src={friend.avatar_id ? `http://api.ringard.net/user/avatar/${friend.avatar_id}` : 'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?w=800&h=400&q=80'}
+                  src={friend.avatar_id ? process.env.NEXT_PUBLIC_API_BASE_URL+`/user/avatar/${friend.avatar_id}` : 'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?w=800&h=400&q=80'}
                   alt=""
                   fill
                   className="object-cover"
@@ -355,7 +355,7 @@ export default function UsersSidebar() {
                   <div className="relative flex-shrink-0">
                     <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-white/10 group-hover:ring-white/20 transition-all">
                       <Image
-                        src={friend.avatar_id ? `http://api.ringard.net/user/avatar/${friend.avatar_id}` : '/default-avatar.png'}
+                        src={friend.avatar_id ? process.env.NEXT_PUBLIC_API_BASE_URL+`/user/avatar/${friend.avatar_id}` : '/default-avatar.png'}
                         alt={friend.username}
                         width={40}
                         height={40}
