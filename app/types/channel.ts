@@ -50,4 +50,5 @@ export interface Message {
     content: string;
     author: Author;
   };
+  mentions?: string[];
 }
