@@ -46,7 +46,7 @@ export const useWebSocket = create<WebSocketState>((set: any, get: any) => ({
         globalReconnectTimeout = null;
       }
 
-      const socket = new WebSocket('ws://5.181.183.55:33333');
+      const socket = new WebSocket('wss://ws-demo.ringard.net');
       globalSocket = socket;
       
       const maxReconnectAttempts = 5;
