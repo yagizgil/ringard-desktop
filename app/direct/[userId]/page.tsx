@@ -287,30 +287,26 @@ export default function DirectMessagePage() {
                     
                     if (reactionData.action === 'add') {
                       if (existingReaction) {
-                        if (!existingReaction.users.includes(reactionData.user_id)) {
-                          return {
-                            ...message,
-                            reactions: reactions.map(r => 
-                              r.emoji === reactionData.emoji 
-                                ? { ...r, count: r.count + 1, users: [...r.users, reactionData.user_id] } 
-                                : r
-                            )
-                          };
-                        }
+                        return {
+                          ...message,
+                          reactions: reactions.map(r => 
+                            r.emoji === reactionData.emoji 
+                              ? { ...r, count: r.count + 1, reacted: true } 
+                              : r
+                          )
+                        };
                       } else {
                         return {
                           ...message,
                           reactions: [
                             ...reactions,
-                            { emoji: reactionData.emoji, count: 1, users: [reactionData.user_id] }
+                            { emoji: reactionData.emoji, count: 1, reacted: true }
                           ]
                         };
                       }
                     } else if (reactionData.action === 'remove') {
                       if (existingReaction) {
-                        const updatedUsers = existingReaction.users.filter(id => id !== reactionData.user_id);
-                        
-                        if (updatedUsers.length === 0) {
+                        if (existingReaction.count === 1) {
                           return {
                             ...message,
                             reactions: reactions.filter(r => r.emoji !== reactionData.emoji)
@@ -320,7 +316,7 @@ export default function DirectMessagePage() {
                             ...message,
                             reactions: reactions.map(r => 
                               r.emoji === reactionData.emoji 
-                                ? { ...r, count: updatedUsers.length, users: updatedUsers } 
+                                ? { ...r, count: r.count - 1, reacted: false } 
                                 : r
                             )
                           };
@@ -569,13 +565,21 @@ export default function DirectMessagePage() {
           
           if (existingReaction) {
             // If user already reacted, remove their reaction
-            updatedReactions = updatedReactions.filter(r => r.emoji !== emoji);
+            if (existingReaction.count === 1) {
+              updatedReactions = updatedReactions.filter(r => r.emoji !== emoji);
+            } else {
+              updatedReactions = updatedReactions.map(r => 
+                r.emoji === emoji 
+                  ? { ...r, count: r.count - 1, reacted: false } 
+                  : r
+              );
+            }
           } else {
             // Add new reaction
             updatedReactions.push({
               emoji,
-              userId: currentUserId,
-              timestamp: new Date().toISOString()
+              count: 1,
+              reacted: true
             });
           }
           
@@ -855,7 +859,6 @@ export default function DirectMessagePage() {
                             {message.reactions && message.reactions.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 mt-2">
                                 {message.reactions.map((reaction) => {
-                                  const hasReacted = reaction.users.includes(currentUserId);
                                   const emojiHtml = emojiCodeToHtml(reaction.emoji, emojiCategories);
                                   
                                   return (
@@ -863,7 +866,7 @@ export default function DirectMessagePage() {
                                       key={reaction.emoji}
                                       onClick={() => handleAddReaction(message.id, reaction.emoji)}
                                       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all duration-200 ${
-                                        hasReacted 
+                                        reaction.reacted 
                                           ? 'bg-[var(--primary)]/20 text-[var(--primary)] hover:bg-[var(--primary)]/30' 
                                           : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'
                                       }`}

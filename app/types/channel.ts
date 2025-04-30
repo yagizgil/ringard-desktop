@@ -25,7 +25,7 @@ export interface Attachment {
 export interface Reaction {
   emoji: string;
   count: number;
-  users: string[];
+  reacted: boolean;
 }
 
 export interface Author {
