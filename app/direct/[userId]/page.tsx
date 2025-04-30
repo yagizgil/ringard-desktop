@@ -7,9 +7,28 @@ import { Hash, AtSign, Smile, Paperclip, Gift, Send, Pin, Reply, Edit, MoreVerti
 import { motion } from 'framer-motion';
 import DirectLayout from '@/app/components/layout/DirectLayout';
 import { useWebSocket } from '@/lib/websocket';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { getCookie } from 'cookies-next';
 import { getUserProfile } from '@/app/lib/api';
+import CryptoJS from 'crypto-js';
+import { MessageSecurity } from '@/app/lib/security/MessageSecurity';
+
+// Şifreleme sabitleri
+const ENCRYPTION_PREFIX = 'RING_';
+const ENCRYPTION_SUFFIX = '_APP';
+
+// Şifreleme fonksiyonu
+const encryptMessage = (message: string, userId: string): string => {
+  const key = ENCRYPTION_PREFIX + CryptoJS.MD5(userId).toString() + ENCRYPTION_SUFFIX;
+  return CryptoJS.AES.encrypt(message, key).toString();
+};
+
+// Çözme fonksiyonu
+const decryptMessage = (encryptedMessage: string, userId: string): string => {
+  const key = ENCRYPTION_PREFIX + CryptoJS.MD5(userId).toString() + ENCRYPTION_SUFFIX;
+  const bytes = CryptoJS.AES.decrypt(encryptedMessage, key);
+  return bytes.toString(CryptoJS.enc.Utf8);
+};
 
 // Örnek mesajlar
 const SAMPLE_MESSAGES: Message[] = [
@@ -51,7 +70,9 @@ const SAMPLE_MESSAGES: Message[] = [
 
 export default function DirectMessagePage() {
   const params = useParams();
+  const router = useRouter();
   const userId = params.userId as string;
+  const currentUserId = getCookie('user_id') as string;
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -59,16 +80,16 @@ export default function DirectMessagePage() {
   const [currentUsername, setCurrentUsername] = useState<string>('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [mentioningUser, setMentioningUser] = useState<boolean>(false);
+  const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const notificationSound = useRef<HTMLAudioElement | null>(null);
+  const [isSoundEnabled, setIsSoundEnabled] = useState(false);
   
   // WebSocket bağlantısı
   const { connect, disconnect, sendDirectMessage, messages: wsMessages, isConnected } = useWebSocket();
   
-  // Kullanıcı bilgilerini al
-  const currentUserId = getCookie('user_id') as string;
-
   // Kullanıcı profilini al
   useEffect(() => {
     const token = getCookie('access_token');
@@ -83,6 +104,13 @@ export default function DirectMessagePage() {
       });
   }, []);
 
+  // Kullanıcı kendisiyle mesajlaşmaya çalışıyorsa ana sayfaya yönlendir
+  useEffect(() => {
+    if (userId === currentUserId) {
+      router.push('/');
+    }
+  }, [userId, currentUserId, router]);
+
   // WebSocket bağlantısını kur
   useEffect(() => {
     if (currentUserId && !isConnected && currentUsername) {
@@ -96,60 +124,171 @@ export default function DirectMessagePage() {
     };
   }, [currentUserId, connect, isConnected, currentUsername]);
 
+  // Ses dosyasını yükle ve kullanıcı etkileşimi için hazırla
+  useEffect(() => {
+    notificationSound.current = new Audio('/blink.mp3');
+    notificationSound.current.load();
+
+    // Kullanıcı etkileşimi için bir buton ekle
+    const handleUserInteraction = () => {
+      setIsSoundEnabled(true);
+      // Kullanıcı etkileşiminden sonra event listener'ı kaldır
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+    };
+
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+    };
+  }, []);
+
+  // Ses çalma fonksiyonu
+  const playNotificationSound = async () => {
+    if (!isSoundEnabled || !notificationSound.current) return;
+
+    try {
+      // Ses dosyasını sıfırla ve tekrar yükle
+      notificationSound.current.currentTime = 0;
+      await notificationSound.current.play();
+      console.log('Bildirim sesi çalıyor');
+    } catch (error) {
+      console.error('Ses çalma hatası:', error);
+      // Hata durumunda sesi tekrar yükle
+      notificationSound.current.load();
+    }
+  };
+
+  // Bildirim göster
+  const showNotification = (title: string, body: string) => {
+    if (!isNotificationEnabled) return;
+
+    // Eğer sayfa görünür durumdaysa bildirim gösterme
+    if (document.visibilityState === 'visible') return;
+
+    const notification = new Notification(title, {
+      body: body,
+      icon: '/logo/logo.png',
+      badge: '/logo/logo.png',
+      tag: 'new-message',
+      requireInteraction: true, // Kullanıcı etkileşimi gerektir
+      silent: false, // Varsayılan sesi kullan
+      data: {
+        url: window.location.href, // Bildirime tıklandığında açılacak URL
+        timestamp: new Date().toISOString()
+      }
+    });
+
+    // Bildirime tıklandığında sayfaya yönlendir
+    notification.onclick = () => {
+      window.focus();
+      window.location.href = notification.data.url;
+    };
+  };
+
+  // Bildirim izni iste
+  useEffect(() => {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        setIsNotificationEnabled(true);
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          setIsNotificationEnabled(permission === 'granted');
+        });
+      }
+    }
+  }, []);
+
   // WebSocket mesajlarını dinle
   useEffect(() => {
     if (wsMessages.length > 0) {
-        const lastMessage = wsMessages[wsMessages.length - 1];
-        
-        // Sadece bu kullanıcı ile ilgili mesajları göster
-        if (lastMessage.message_type === 'DirectMessage' && 
-            (lastMessage.user_id === userId || lastMessage.recipient_id === userId)) {
+      const lastMessage = wsMessages[wsMessages.length - 1];
+      
+      // Mesajın sadece bu iki kullanıcı arasında olduğunu kontrol et
+      const isValidMessage = (
+        (lastMessage.user_id === currentUserId && lastMessage.recipient_id === userId) ||
+        (lastMessage.user_id === userId && lastMessage.recipient_id === currentUserId)
+      );
+      
+      if (lastMessage.message_type === 'DirectMessage' && isValidMessage) {
+        try {
+          // Eğer content bir JSON string ise, onu parse et
+          let messageContent = lastMessage.content;
+          let replyTo = null;
+          let mentions: string[] = [];
+          
+          if (lastMessage.content.startsWith('dm:')) {
+            const jsonContent = lastMessage.content.substring(3);
+            const parsedContent = JSON.parse(jsonContent);
             
-            try {
-                // Eğer content bir JSON string ise, onu parse et
-                let messageContent = lastMessage.content;
-                let replyTo = null;
-                let mentions: string[] = [];
-                
-                if (lastMessage.content.startsWith('dm:')) {
-                    const jsonContent = lastMessage.content.substring(3);
-                    const parsedContent = JSON.parse(jsonContent);
-                    messageContent = parsedContent.content;
-                    replyTo = parsedContent.reply_to;
-                    mentions = parsedContent.mentions || [];
-                }
-                
-                // Mesajı uygun formata dönüştür
-                const formattedMessage: Message = {
-                    id: Date.now().toString(),
-                    content: messageContent,
-                    author: {
-                        id: lastMessage.user_id,
-                        name: lastMessage.username,
-                        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80', // Varsayılan avatar
-                        status: 'online'
-                    },
-                    timestamp: new Date().toISOString(),
-                    replyTo: replyTo ? {
-                        id: replyTo.message_id,
-                        content: replyTo.content,
-                        author: {
-                            id: replyTo.author.id,
-                            name: replyTo.author.name,
-                            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
-                            status: 'online'
-                        }
-                    } : undefined,
-                    mentions: mentions.length > 0 ? mentions : undefined
+            // Mesajı çöz
+            messageContent = MessageSecurity.decryptMessage(
+              parsedContent.content,
+              currentUserId
+            ) || 'Mesaj çözülemedi';
+            
+            // Yanıtlanan mesajı çöz
+            if (parsedContent.reply_to) {
+              const decryptedReply = MessageSecurity.decryptMessage(
+                parsedContent.reply_to.content,
+                currentUserId
+              );
+              
+              if (decryptedReply) {
+                replyTo = {
+                  ...parsedContent.reply_to,
+                  content: decryptedReply
                 };
-                
-                setMessages(prev => [...prev, formattedMessage]);
-            } catch (error) {
-                console.error('Mesaj parse edilemedi:', error);
+              }
             }
+            
+            mentions = parsedContent.mentions || [];
+          }
+          
+          const formattedMessage: Message = {
+            id: Date.now().toString(),
+            content: messageContent,
+            author: {
+              id: lastMessage.user_id,
+              name: lastMessage.username,
+              avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
+              status: 'online'
+            },
+            timestamp: new Date().toISOString(),
+            replyTo: replyTo ? {
+              id: replyTo.message_id,
+              content: replyTo.content,
+              author: {
+                id: replyTo.author.id,
+                name: replyTo.author.name,
+                avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
+                status: 'online'
+              }
+            } : undefined,
+            mentions: mentions.length > 0 ? mentions : undefined
+          };
+          
+          setMessages(prev => [...prev, formattedMessage]);
+          
+          // Sadece alıcı için ses çal ve bildirim göster
+          if (lastMessage.recipient_id === currentUserId) {
+            playNotificationSound();
+            showNotification(
+              lastMessage.username,
+              messageContent.length > 50 
+                ? messageContent.substring(0, 50) + '...' 
+                : messageContent
+            );
+          }
+        } catch (error) {
+          console.error('Mesaj parse edilemedi:', error);
         }
+      }
     }
-  }, [wsMessages, userId]);
+  }, [wsMessages, userId, currentUserId, isSoundEnabled, isNotificationEnabled]);
 
   // Sayfa yüklendiğinde örnek mesajları göster
   useEffect(() => {
@@ -168,12 +307,24 @@ export default function DirectMessagePage() {
   const handleSendMessage = () => {
     if (messageInput.trim() && isConnected) {
         const recipientId = params.userId as string;
+        
+        // Mesajı şifrele
+        const encryptedContent = MessageSecurity.encryptMessage(
+          messageInput,
+          currentUserId,
+          recipientId
+        );
+        
         const messageData = {
             recipient_id: recipientId,
-            content: messageInput,
+            content: encryptedContent,
             reply_to: replyingTo ? {
                 message_id: replyingTo.id,
-                content: replyingTo.content,
+                content: MessageSecurity.encryptMessage(
+                  replyingTo.content,
+                  currentUserId,
+                  recipientId
+                ),
                 author: {
                     id: replyingTo.author.id,
                     name: replyingTo.author.name
