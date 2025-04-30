@@ -34,58 +34,59 @@ export class MessageSecurity {
   }
 
   // Şifreleme ana fonksiyonu
-  public static encryptMessage(message: string, senderId: string, receiverId: string): string {
-    const timestamp = Date.now();
-    
-    // Mesajı parçalara böl
-    const parts = this.splitMessage(message);
-    
-    // Her parçayı hem gönderen hem alıcı için şifrele
-    const senderEncrypted = this.encryptParts(parts, senderId, timestamp);
-    const receiverEncrypted = this.encryptParts(parts, receiverId, timestamp);
-    
+  public static encryptMessage(message: string, senderId: string, recipientId: string): string {
+    // Mesajı JSON string'e çevir (newline'ları korumak için)
+    const messageObj = {
+      content: message,
+      timestamp: new Date().toISOString()
+    };
+    const messageJson = JSON.stringify(messageObj);
+
+    // Gönderen için şifrele
+    const senderKey = this.ENCRYPTION_PREFIX + CryptoJS.MD5(senderId).toString() + this.ENCRYPTION_SUFFIX;
+    const senderEncrypted = CryptoJS.AES.encrypt(messageJson, senderKey).toString();
+
+    // Alıcı için şifrele
+    const recipientKey = this.ENCRYPTION_PREFIX + CryptoJS.MD5(recipientId).toString() + this.ENCRYPTION_SUFFIX;
+    const recipientEncrypted = CryptoJS.AES.encrypt(messageJson, recipientKey).toString();
+
     // İmza oluştur
-    const signature = this.signMessage(message, senderId, timestamp);
-    
-    // Tüm veriyi birleştir
+    const signature = CryptoJS.MD5(messageJson).toString();
+
+    // Sonucu JSON olarak döndür
     return JSON.stringify({
       senderEncrypted,
-      receiverEncrypted,
+      recipientEncrypted,
       signature,
-      timestamp,
+      timestamp: new Date().toISOString(),
       senderId,
-      receiverId
+      recipientId
     });
   }
 
   // Çözme ana fonksiyonu
-  public static decryptMessage(encryptedData: string, userId: string): string | null {
+  public static decryptMessage(encryptedMessage: string, userId: string): string | null {
     try {
-      const data = JSON.parse(encryptedData);
-      const { senderEncrypted, receiverEncrypted, signature, timestamp, senderId, receiverId } = data;
+      // JSON'u parse et
+      const messageData = JSON.parse(encryptedMessage);
       
-      // Kullanıcının hangi şifreli parçaları kullanacağını belirle
-      const encryptedParts = userId === senderId ? senderEncrypted : receiverEncrypted;
+      // Kullanıcı ID'sine göre doğru şifreli mesajı seç
+      const encryptedContent = userId === messageData.senderId 
+        ? messageData.senderEncrypted 
+        : messageData.recipientEncrypted;
+
+      // Şifre çözme anahtarını oluştur
+      const key = this.ENCRYPTION_PREFIX + CryptoJS.MD5(userId).toString() + this.ENCRYPTION_SUFFIX;
       
-      // Parçaları çöz
-      const decryptedParts = encryptedParts.map((part: string, index: number) => {
-        const partKey = this.generateUserKey(userId + index, timestamp);
-        return CryptoJS.AES.decrypt(part, partKey).toString(CryptoJS.enc.Utf8);
-      });
+      // Mesajı çöz
+      const bytes = CryptoJS.AES.decrypt(encryptedContent, key);
+      const decryptedJson = bytes.toString(CryptoJS.enc.Utf8);
       
-      // Parçaları birleştir
-      const decryptedMessage = decryptedParts.join('');
-      
-      // İmzayı doğrula
-      const expectedSignature = this.signMessage(decryptedMessage, senderId, timestamp);
-      if (expectedSignature !== signature) {
-        console.error('Message integrity check failed');
-        return null;
-      }
-      
-      return decryptedMessage;
+      // JSON'u parse et ve içeriği döndür
+      const messageObj = JSON.parse(decryptedJson);
+      return messageObj.content;
     } catch (error) {
-      console.error('Decryption failed:', error);
+      console.error('Mesaj çözme hatası:', error);
       return null;
     }
   }

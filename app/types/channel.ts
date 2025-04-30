@@ -25,7 +25,7 @@ export interface Attachment {
 export interface Reaction {
   emoji: string;
   count: number;
-  reacted: boolean;
+  users: string[];
 }
 
 export interface Author {
@@ -51,4 +51,7 @@ export interface Message {
     author: Author;
   };
   mentions?: string[];
+  type?: 'text' | 'gif';
+  gifUrl?: string;
+  gifTitle?: string;
 }
