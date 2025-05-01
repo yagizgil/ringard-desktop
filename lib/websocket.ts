@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getCookie } from 'cookies-next';
 
 interface WebSocketState {
   socket: WebSocket | null;
@@ -46,7 +47,7 @@ export const useWebSocket = create<WebSocketState>((set: any, get: any) => ({
         globalReconnectTimeout = null;
       }
 
-      const socket = new WebSocket('ws://5.181.183.55:33333');
+      const socket = new WebSocket('ws://localhost:8080');
       globalSocket = socket;
       
       const maxReconnectAttempts = 5;
@@ -54,10 +55,24 @@ export const useWebSocket = create<WebSocketState>((set: any, get: any) => ({
       
       socket.onopen = () => {
         console.log('WebSocket bağlantısı kuruldu');
-        // Kullanıcı bilgilerini gönder
-        socket.send(JSON.stringify({ user_id: userId, username: username }));
+        
+        // Önce authentication token'ı gönder
+        const token = getCookie('access_token');
+        if (token) {
+            socket.send(JSON.stringify({ 
+                type: 'auth',
+                token: token 
+            }));
+        }
+        
+        // Sonra kullanıcı bilgilerini gönder
+        socket.send(JSON.stringify({ 
+            user_id: userId, 
+            username: username 
+        }));
+        
         set({ isConnected: true, socket });
-        globalReconnectAttempts = 0; // Bağlantı başarılı olduğunda sayacı sıfırla
+        globalReconnectAttempts = 0;
       };
       
       socket.onmessage = (event) => {
@@ -90,7 +105,7 @@ export const useWebSocket = create<WebSocketState>((set: any, get: any) => ({
             if (!get().isConnected) {
               get().connect(userId, username);
             }
-          }, reconnectDelay * globalReconnectAttempts); // Her denemede bekleme süresini artır
+          }, reconnectDelay * globalReconnectAttempts);
         } else {
           console.log('Maksimum yeniden bağlanma denemesi aşıldı. Lütfen sayfayı yenileyin.');
         }
@@ -130,4 +145,4 @@ export const useWebSocket = create<WebSocketState>((set: any, get: any) => ({
       console.error('WebSocket bağlantısı yok veya açık değil');
     }
   }
-})); 
+}));

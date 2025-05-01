@@ -35,7 +35,8 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect, onClose }) => 
             name: 'Yüz İfadeleri',
             emojis: [
               { id: 'smile', name: 'smile', url: '/emojis/smile.png' },
-              { id: 'laugh', name: 'laugh', url: '/emojis/laugh.png' },
+              { id: 'angelsmile', name: 'angelsmile', url: '/emojis/angel_smile.png' },
+              { id: 'cyanstar', name: 'cyanstar', url: '/emojis/cyan_star.gif' },
               { id: 'wink', name: 'wink', url: '/emojis/wink.png' },
               { id: 'heart', name: 'heart', url: '/emojis/heart.png' },
             ]

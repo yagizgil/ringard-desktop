@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import { Message, Reaction } from '@/app/types/channel';
-import { Hash, AtSign, Smile, Paperclip, Gift, Send, Pin, Reply, Edit, MoreVertical, Search, Bell, Inbox, HelpCircle, Users, X, Plus } from 'lucide-react';
+import { Message as ChannelMessage, Reaction } from '@/app/types/channel';
+import { Hash, AtSign, Smile, Paperclip, Gift, Send, Pin, Reply, Edit, MoreVertical, Search, Bell, Inbox, HelpCircle, Users, X, Plus, Eye, EyeOff, UserPlus, Flag, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DirectLayout from '@/app/components/layout/DirectLayout';
 import { useWebSocket } from '@/lib/websocket';
@@ -49,55 +49,42 @@ const encryptMessage = (message: string, userId: string): string => {
   return CryptoJS.AES.encrypt(message, key).toString();
 };
 
-// Çözme fonksiyonu
-const decryptMessage = (encryptedMessage: string, userId: string): string => {
-  const key = ENCRYPTION_PREFIX + CryptoJS.MD5(userId).toString() + ENCRYPTION_SUFFIX;
-  const bytes = CryptoJS.AES.decrypt(encryptedMessage, key);
-  return bytes.toString(CryptoJS.enc.Utf8);
-};
+interface Message extends ChannelMessage {
+  id: string;
+  content: string;
+  author: {
+    id: string;
+    name: string;
+    avatar: string;
+    role?: string;
+    status: 'online' | 'idle' | 'dnd' | 'offline';
+  };
+  timestamp: string;
+  reactions: Reaction[];
+  attachments: any[];
+  embeds: any[];
+  gifUrl?: string;
+  gifTitle?: string;
+  type?: 'text' | 'gif';
+}
 
-// Örnek mesajlar
-const SAMPLE_MESSAGES: Message[] = [
-  /* {
-    id: '2',
-    content: 'Teşekkürler! Harika bir topluluk olacağına eminim.',
-    author: {
-      id: '2',
-      name: 'Ayşe',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&q=80',
-      status: 'online'
-    },
-    timestamp: '2025-03-28T09:05:00',
-    reactions: [
-      { emoji: '❤️', count: 3, reacted: true },
-      { emoji: '👍', count: 2, reacted: false }
-    ]
-  },
-  {
-    id: '3',
-    content: 'Merhaba! Ben de yeni katıldım. Burada olmak harika!',
-    author: {
-      id: '3',
-      name: 'Mehmet',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&q=80',
-      status: 'online'
-    },
-    timestamp: '2025-03-28T09:10:00',
-    attachments: [
-      {
-        type: 'image',
-        url: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=500&h=300&fit=crop',
-        name: 'welcome.jpg',
-        size: 1024 * 1024 // 1MB
-      }
-    ]
-  } */
-];
+interface ApiMessage {
+  id: string;
+  content: string;
+  conversation_id: string;
+  created_at: string;
+  edited_at: string | null;
+  sender_id: string;
+  reactions: any[];
+  attachments: any[];
+  embeds: any[];
+  read_status: any[];
+}
 
 export default function DirectMessagePage() {
-  const params = useParams();
+  const params = useParams() as { userId: string };
+  const routeUserId = params.userId;
   const router = useRouter();
-  const userId = params.userId as string;
   const currentUserId = getCookie('user_id') as string;
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState('');
@@ -115,10 +102,60 @@ export default function DirectMessagePage() {
   const [emojiCategories, setEmojiCategories] = useState<EmojiCategory[]>([]);
   const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
+  const [hiddenMessages, setHiddenMessages] = useState<string[]>([]);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; message: Message } | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   
   // WebSocket bağlantısı
   const { connect, disconnect, sendDirectMessage, messages: wsMessages, isConnected } = useWebSocket();
   
+  // Emoji map'i oluştur
+  const emojiMap = {
+    smile: '/emojis/smile.png',
+    angelsmile: '/emojis/angel_smile.png',
+    cyanstar: '/emojis/cyan_star.gif',
+    wink: '/emojis/wink.png',
+    heart: '/emojis/heart.png',
+    thumbsup: '/emojis/thumbsup.png',
+    thumbsdown: '/emojis/thumbsdown.png',
+    ok: '/emojis/ok.png',
+    pray: '/emojis/pray.png',
+    dog: '/emojis/dog.png',
+    cat: '/emojis/cat.png',
+    rabbit: '/emojis/rabbit.png',
+    fox: '/emojis/fox.png',
+  };
+
+  // Mesajdaki emojileri işle
+  const processEmojis = (text: string) => {
+    // Emoji formatı: <:emojiname:emojiname>
+    const emojiRegex = /<:(\w+):\w+>/g;
+    
+    // Emojileri img elementleriyle değiştir
+    return text.split(emojiRegex).map((part, index) => {
+      // Eğer bu parça bir emoji adıysa
+      if (emojiMap[part as keyof typeof emojiMap]) {
+        return (
+          <img
+            key={index}
+            src={emojiMap[part as keyof typeof emojiMap]}
+            alt={`:${part}:`}
+            className="inline-block w-6 h-6 align-middle"
+            loading="lazy"
+          />
+        );
+      }
+      // Normal metin ise
+      return part;
+    });
+  };
+
   // Mesaj formatlama fonksiyonu
   const formatMessage = useCallback((content: string) => {
     // Emojileri işle
@@ -139,6 +176,79 @@ export default function DirectMessagePage() {
     return content;
   }, [emojiCategories]);
   
+  // Emoji formatını kontrol et ve emoji resmini göster
+  const renderEmoji = (text: string) => {
+    // Emoji formatı: <:emojiname:emojiid>
+    const emojiRegex = /<:(\w+):(\w+)>/g;
+    
+    if (!emojiRegex.test(text)) {
+      return text;
+    }
+
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    // Regex'i sıfırla
+    emojiRegex.lastIndex = 0;
+
+    while ((match = emojiRegex.exec(text)) !== null) {
+      // Emoji öncesi metni ekle
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+
+      // Emoji elementini ekle
+      const emojiName = match[1];
+      parts.push(
+        <img
+          key={match.index}
+          src={`/emojis/${emojiName}.png`}
+          alt={`:${emojiName}:`}
+          className="inline-block w-6 h-6 align-middle"
+          loading="lazy"
+        />
+      );
+
+      lastIndex = emojiRegex.lastIndex;
+    }
+
+    // Kalan metni ekle
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+
+    return <>{parts}</>;
+  };
+
+  // Mesaj içeriğini render et
+  const renderMessageContent = (content: string) => {
+    try {
+      // JSON olup olmadığını kontrol et
+      const parsed = JSON.parse(content);
+      
+      // GIF mesajı ise
+      if (parsed.type === 'gif') {
+        return (
+          <div className="relative w-64 h-48">
+            <img 
+              src={parsed.content} 
+              alt={parsed.alt || 'GIF'} 
+              className="rounded-lg object-cover w-full h-full"
+              loading="lazy"
+            />
+          </div>
+        );
+      }
+      
+      // Diğer JSON mesajları için içeriği göster
+      return processEmojis(content);
+    } catch (e) {
+      // JSON parse edilemezse normal mesaj olarak göster
+      return processEmojis(content);
+    }
+  };
+
   // Kullanıcı profilini al
   useEffect(() => {
     const token = getCookie('access_token');
@@ -155,10 +265,10 @@ export default function DirectMessagePage() {
 
   // Kullanıcı kendisiyle mesajlaşmaya çalışıyorsa ana sayfaya yönlendir
   useEffect(() => {
-    if (userId === currentUserId) {
+    if (routeUserId === currentUserId) {
       router.push('/');
     }
-  }, [userId, currentUserId, router]);
+  }, [routeUserId, currentUserId, router]);
 
   // WebSocket bağlantısını kur
   useEffect(() => {
@@ -255,196 +365,130 @@ export default function DirectMessagePage() {
   useEffect(() => {
     if (wsMessages.length > 0) {
       const lastMessage = wsMessages[wsMessages.length - 1];
+      console.log('Yeni WebSocket mesajı:', lastMessage);
       
       // Mesajın sadece bu iki kullanıcı arasında olduğunu kontrol et
       const isValidMessage = (
-        (lastMessage.user_id === currentUserId && lastMessage.recipient_id === userId) ||
-        (lastMessage.user_id === userId && lastMessage.recipient_id === currentUserId)
+        (lastMessage.user_id === currentUserId && lastMessage.recipient_id === routeUserId) ||
+        (lastMessage.user_id === routeUserId && lastMessage.recipient_id === currentUserId)
       );
       
       if (isValidMessage) {
         try {
           // Mesaj içeriğini parse et
-          let parsedContent;
-          if (lastMessage.content.startsWith('dm:')) {
-            const jsonContent = lastMessage.content.substring(3);
-            parsedContent = JSON.parse(jsonContent);
+          let messageContent = lastMessage.content;
+          
+          if (typeof messageContent === 'string' && messageContent.startsWith('dm:')) {
+            const dmData = JSON.parse(messageContent.substring(3));
+            
+            // Şifrelenmiş içeriği parse et
+            if (dmData.content && typeof dmData.content === 'string') {
+              const encryptedContent = JSON.parse(dmData.content);
+              
+              // Gönderen veya alıcı için doğru userId'yi seç
+              const isCurrentUserSender = lastMessage.user_id === currentUserId;
+              const targetUserId = isCurrentUserSender ? currentUserId : routeUserId;
+              
+              // Şifreli mesajı çöz
+              const decryptedContent = MessageSecurity.decryptMessage(encryptedContent, targetUserId);
+              messageContent = decryptedContent || 'Mesaj çözülemedi';
+                  
+              if (!decryptedContent) {
+                console.error('Mesaj çözülemedi:', {
+                  content: dmData.content,
+                  targetUserId,
+                  isCurrentUserSender
+                });
+              }
+            } else {
+              messageContent = dmData.content || 'Mesaj içeriği bulunamadı';
+            }
           }
 
-          // Reaksiyon mesajlarını işle
-          if (parsedContent?.type === 'reaction') {
-            const reactionData = JSON.parse(MessageSecurity.decryptMessage(
-              parsedContent.content,
-              currentUserId
-            ) || '{}');
-            
-            if (reactionData.type === 'reaction') {
-              setMessages(prevMessages => {
-                return prevMessages.map(message => {
-                  if (message.id === reactionData.message_id) {
-                    const reactions = message.reactions || [];
-                    const existingReaction = reactions.find(r => r.emoji === reactionData.emoji);
-                    
-                    if (reactionData.action === 'add') {
-                      if (existingReaction) {
-                        return {
-                          ...message,
-                          reactions: reactions.map(r => 
-                            r.emoji === reactionData.emoji 
-                              ? { ...r, count: r.count + 1, reacted: true } 
-                              : r
-                          )
-                        };
-                      } else {
-                        return {
-                          ...message,
-                          reactions: [
-                            ...reactions,
-                            { emoji: reactionData.emoji, count: 1, reacted: true }
-                          ]
-                        };
-                      }
-                    } else if (reactionData.action === 'remove') {
-                      if (existingReaction) {
-                        if (existingReaction.count === 1) {
-                          return {
-                            ...message,
-                            reactions: reactions.filter(r => r.emoji !== reactionData.emoji)
-                          };
-                        } else {
-                          return {
-                            ...message,
-                            reactions: reactions.map(r => 
-                              r.emoji === reactionData.emoji 
-                                ? { ...r, count: r.count - 1, reacted: false } 
-                                : r
-                            )
-                          };
-                        }
-                      }
-                    }
-                  }
-                  return message;
-                });
-              });
-            }
-            return; // Reaksiyon mesajlarını normal mesaj olarak işleme
-          }
+          // Mesajı oluştur
+          const newMessage: Message = {
+            id: Date.now().toString(),
+            content: messageContent,
+            author: {
+              id: lastMessage.user_id,
+              name: lastMessage.user_id === currentUserId ? currentUsername : 'Diğer Kullanıcı',
+              avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
+              status: 'online'
+            },
+            timestamp: lastMessage.timestamp || new Date().toISOString(),
+            reactions: [],
+            attachments: [],
+            embeds: []
+          };
+
+          // Mesajları güncelle
+          setMessages(prev => [...prev, newMessage]);
           
-          // GIF mesajlarını işle
-          if (parsedContent?.type === 'gif') {
-            const gifData = JSON.parse(MessageSecurity.decryptMessage(
-              parsedContent.content,
-              currentUserId
-            ) || '{}');
-            
-            if (gifData.type === 'gif') {
-              const formattedMessage: Message = {
-                id: Date.now().toString(),
-                content: '',
-                type: 'gif',
-                gifUrl: gifData.content,
-                gifTitle: gifData.alt,
-                author: {
-                  id: lastMessage.user_id,
-                  name: lastMessage.username,
-                  avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
-                  status: 'online'
-                },
-                timestamp: new Date().toISOString()
-              };
-              
-              setMessages(prev => [...prev, formattedMessage]);
-              
-              // Sadece alıcı için ses çal ve bildirim göster
-              if (lastMessage.recipient_id === currentUserId) {
-                playNotificationSound();
-                showNotification(
-                  lastMessage.username,
-                  'GIF gönderdi'
-                );
-              }
-              return;
-            }
-          }
-          
-          // Normal mesajları işle
-          if (!parsedContent?.type || parsedContent.type === 'DirectMessage') {
-            let messageContent = lastMessage.content;
-            let replyTo = null;
-            let mentions: string[] = [];
-            
-            if (lastMessage.content.startsWith('dm:')) {
-              // Mesajı çöz
-              messageContent = MessageSecurity.decryptMessage(
-                parsedContent.content,
-                currentUserId
-              ) || 'Mesaj çözülemedi';
-              
-              // Yanıtlanan mesajı çöz
-              if (parsedContent.reply_to) {
-                const decryptedReply = MessageSecurity.decryptMessage(
-                  parsedContent.reply_to.content,
-                  currentUserId
-                );
-                
-                if (decryptedReply) {
-                  replyTo = {
-                    ...parsedContent.reply_to,
-                    content: decryptedReply
-                  };
-                }
-              }
-              
-              mentions = parsedContent.mentions || [];
-            }
-            
-            const formattedMessage: Message = {
-              id: Date.now().toString(),
-              content: messageContent,
-              author: {
-                id: lastMessage.user_id,
-                name: lastMessage.username,
-                avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
-                status: 'online'
-              },
-              timestamp: new Date().toISOString(),
-              replyTo: replyTo ? {
-                id: replyTo.message_id,
-                content: replyTo.content,
-                author: {
-                  id: replyTo.author.id,
-                  name: replyTo.author.name,
-                  avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
-                  status: 'online'
-                }
-              } : undefined,
-              mentions: mentions.length > 0 ? mentions : undefined
-            };
-            
-            setMessages(prev => [...prev, formattedMessage]);
-            
-            // Sadece alıcı için ses çal ve bildirim göster
-            if (lastMessage.recipient_id === currentUserId) {
-              playNotificationSound();
-              showNotification(
-                lastMessage.username,
-                messageContent.length > 50 
-                  ? messageContent.substring(0, 50) + '...' 
-                  : messageContent
-              );
-            }
+          // Sadece alıcı için ses çal ve bildirim göster
+          if (lastMessage.recipient_id === currentUserId) {
+            playNotificationSound();
+            showNotification(
+              lastMessage.username || 'Yeni Mesaj',
+              messageContent
+            );
           }
         } catch (error) {
-          console.error('Mesaj parse edilemedi:', error);
+          console.error('WebSocket mesajı işlenirken hata:', error);
         }
       }
     }
-  }, [wsMessages, userId, currentUserId, isSoundEnabled, isNotificationEnabled]);
+  }, [wsMessages, currentUserId, routeUserId, currentUsername, playNotificationSound, showNotification]);
+
+  // Mesaj gönderme fonksiyonu
+  const sendMessage = async (content: string) => {
+    try {
+      // Şifrelenmiş mesajı hazırla
+      const encryptedContent = MessageSecurity.encryptMessage(content, currentUserId, routeUserId);
+      const messageData = {
+        recipientId: routeUserId,
+        content: encryptedContent,
+        replyTo: null,
+        mentions: []
+      };
+
+      // WebSocket üzerinden şifreli mesajı gönder
+      sendDirectMessage(routeUserId, `dm:${JSON.stringify(messageData)}`);
+
+      // UI'a ham mesajı ekle
+      const newMessage: Message = {
+        id: Date.now().toString(),
+        content: content, // Ham mesajı göster
+        author: {
+          id: currentUserId,
+          name: currentUsername,
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
+          status: 'online'
+        },
+        timestamp: new Date().toISOString(),
+        reactions: [],
+        attachments: [],
+        embeds: []
+      };
+
+      setMessages(prev => [...prev, newMessage]);
+    } catch (error) {
+      console.error('Mesaj gönderirken hata:', error);
+      // toast.error('Mesaj gönderilemedi');
+    }
+  };
+
+  // Mesajı gönder butonu/enter tuşu handler
+  const handleSendMessage = async () => {
+    if (messageInput.trim()) {
+      sendMessage(messageInput.trim());
+      setMessageInput('');
+      setReplyingTo(null);
+    }
+  };
 
   // Sayfa yüklendiğinde örnek mesajları göster
   useEffect(() => {
-    setMessages(SAMPLE_MESSAGES);
+    setMessages([]);
   }, []);
 
   // Mesajlar güncellendiğinde en alta kaydır
@@ -456,41 +500,6 @@ export default function DirectMessagePage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleSendMessage = () => {
-    if (messageInput.trim() && isConnected) {
-      const recipientId = params.userId as string;
-      
-      // Mesajı şifrele
-      const encryptedContent = MessageSecurity.encryptMessage(
-        messageInput,
-        currentUserId,
-        recipientId
-      );
-      
-      const messageData = {
-        recipient_id: recipientId,
-        content: encryptedContent,
-        reply_to: replyingTo ? {
-          message_id: replyingTo.id,
-          content: MessageSecurity.encryptMessage(
-            replyingTo.content,
-            currentUserId,
-            recipientId
-          ),
-          author: {
-            id: replyingTo.author.id,
-            name: replyingTo.author.name
-          }
-        } : null,
-        mentions: []
-      };
-
-      sendDirectMessage(recipientId, `dm:${JSON.stringify(messageData)}`);
-      setMessageInput('');
-      setReplyingTo(null);
-    }
-  };
-
   const handleReply = (message: Message) => {
     setReplyingTo(message);
     inputRef.current?.focus();
@@ -498,7 +507,7 @@ export default function DirectMessagePage() {
 
   const handleMention = () => {
     setMentioningUser(true);
-    setMessageInput(messageInput + `@${userId} `);
+    setMessageInput(messageInput + `@${routeUserId} `);
     inputRef.current?.focus();
   };
 
@@ -512,8 +521,8 @@ export default function DirectMessagePage() {
       id: Date.now().toString(),
       content: '',
       author: {
-        id: currentUserId,
-        name: currentUsername,
+        id: currentUserId || '',
+        name: currentUsername || '',
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80', // Varsayılan avatar
         role: 'Admin',
         status: 'online'
@@ -526,7 +535,9 @@ export default function DirectMessagePage() {
           name: file.name,
           size: file.size
         }
-      ]
+      ],
+      reactions: [],
+      embeds: []
     };
 
     setMessages(prev => [...prev, newMessage]);
@@ -556,55 +567,51 @@ export default function DirectMessagePage() {
   // Reaksiyon ekleme fonksiyonu
   const handleAddReaction = async (messageId: string, emoji: string) => {
     setMessages(prevMessages => {
-      return prevMessages.map(message => {
+      const updatedMessages = prevMessages.map(message => {
         if (message.id === messageId) {
-          // Check if user already reacted with this emoji
-          const existingReaction = message.reactions?.find(r => r.emoji === emoji);
+          const reactions = message.reactions || [];
+          const existingReaction = reactions.find(r => r.emoji === emoji);
           
-          let updatedReactions: Reaction[] = [...(message.reactions || [])];
+          let updatedReactions: Reaction[];
           
           if (existingReaction) {
-            // If user already reacted, remove their reaction
-            if (existingReaction.count === 1) {
-              updatedReactions = updatedReactions.filter(r => r.emoji !== emoji);
+            // Kullanıcı zaten tepki vermişse, tepkiyi kaldır
+            const filteredUsers = existingReaction.users.filter(id => id !== currentUserId);
+            if (filteredUsers.length === 0) {
+              updatedReactions = reactions.filter(r => r.emoji !== emoji);
             } else {
-              updatedReactions = updatedReactions.map(r => 
+              updatedReactions = reactions.map(r => 
                 r.emoji === emoji 
-                  ? { ...r, count: r.count - 1, reacted: false } 
+                  ? {
+                      emoji: r.emoji,
+                      count: filteredUsers.length,
+                      users: filteredUsers,
+                      userId: r.userId,
+                      timestamp: r.timestamp
+                    }
                   : r
               );
             }
           } else {
-            // Add new reaction
-            updatedReactions.push({
-              emoji,
-              count: 1,
-              reacted: true
-            });
+            // Yeni tepki ekle
+            updatedReactions = [
+              ...reactions,
+              {
+                emoji,
+                count: 1,
+                users: [currentUserId],
+                userId: currentUserId,
+                timestamp: new Date().toISOString()
+              }
+            ];
           }
-          
-          // Send reaction via WebSocket
-          const reactionData = {
-            messageId,
-            emoji,
-            action: existingReaction ? 'remove' : 'add',
-            userId: currentUserId,
-            timestamp: new Date().toISOString()
-          };
-          
-          sendDirectMessage(userId, `dm:${JSON.stringify({
-            type: 'reaction',
-            content: MessageSecurity.encryptMessage(
-              JSON.stringify(reactionData),
-              currentUserId,
-              userId
-            )
-          })}`);
           
           return { ...message, reactions: updatedReactions };
         }
         return message;
       });
+      
+      return updatedMessages;
     });
   };
   
@@ -746,12 +753,12 @@ export default function DirectMessagePage() {
 
     // Şifrelenmiş mesajı gönder
     if (isConnected) {
-      sendDirectMessage(userId, `dm:${JSON.stringify({
+      sendMessage(`dm:${JSON.stringify({
         type: 'gif',
         content: MessageSecurity.encryptMessage(
           JSON.stringify(gifMessage),
           currentUserId,
-          userId
+          routeUserId
         )
       })}`);
     }
@@ -759,15 +766,375 @@ export default function DirectMessagePage() {
     setShowGifPicker(false);
   };
 
+  const handleContextMenu = (e: React.MouseEvent, message: Message) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, message });
+  };
+
+  const handleMoreClick = (e: React.MouseEvent, messageId: string) => {
+    e.stopPropagation();
+    setShowMoreMenu(showMoreMenu === messageId ? null : messageId);
+  };
+
+  const handleReport = (message: Message) => {
+    setSelectedMessage(message);
+    setShowReportModal(true);
+    setContextMenu(null);
+    setShowMoreMenu(null);
+  };
+
+  const handleHideMessage = (messageId: string) => {
+    setHiddenMessages(prev => 
+      prev.includes(messageId) 
+        ? prev.filter(id => id !== messageId)
+        : [...prev, messageId]
+    );
+    setContextMenu(null);
+    setShowMoreMenu(null);
+  };
+
+  const handleViewProfile = (username: string) => {
+    router.push(`/profile/${username}`);
+    setContextMenu(null);
+    setShowMoreMenu(null);
+  };
+
+  const handleAddFriend = () => {
+    // TODO: Implement add friend functionality
+    setContextMenu(null);
+    setShowMoreMenu(null);
+  };
+
+  const handleSubmitReport = () => {
+    if (!selectedMessage || !reportReason) return;
+    
+    // TODO: Implement report submission
+    console.log('Report submitted:', {
+      messageId: selectedMessage.id,
+      reason: reportReason,
+      details: reportDetails
+    });
+    
+    setShowReportModal(false);
+    setSelectedMessage(null);
+    setReportReason('');
+    setReportDetails('');
+  };
+
+  // Report Modal Component
+  const ReportModal = () => {
+    if (!showReportModal || !selectedMessage) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-[var(--surface)] rounded-lg p-6 max-w-md w-full mx-4">
+          <h2 className="text-xl font-semibold mb-4 text-[var(--text-primary)]">Mesajı Raporla</h2>
+          
+          <div className="mb-4 p-4 bg-[var(--card)] rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <Image
+                src={selectedMessage.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
+                alt={selectedMessage.author.name}
+                width={32}
+                height={32}
+                className="rounded-full"
+              />
+              <span className="font-medium text-[var(--text-primary)]">
+                {selectedMessage.author.name}
+              </span>
+            </div>
+            <p className="text-[var(--text-primary)]">
+              {selectedMessage.content}
+            </p>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
+              Rapor Nedeni
+            </label>
+            <select
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full bg-[var(--card)] border border-[var(--border)] rounded-lg px-4 py-2 text-[var(--text-primary)] appearance-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+            >
+              <option value="">Seçiniz</option>
+              <option value="spam">Spam</option>
+              <option value="harassment">Taciz</option>
+              <option value="hate_speech">Nefret Söylemi</option>
+              <option value="inappropriate">Uygunsuz İçerik</option>
+              <option value="other">Diğer</option>
+            </select>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
+              Ek Bilgiler (Opsiyonel)
+            </label>
+            <textarea
+              value={reportDetails}
+              onChange={(e) => setReportDetails(e.target.value)}
+              maxLength={200}
+              className="w-full bg-[var(--card)] border border-[var(--border)] rounded-lg px-4 py-2 text-[var(--text-primary)] resize-none h-24 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              placeholder="Lütfen ek bilgiler ekleyin (maksimum 200 karakter)"
+              onFocus={(e) => {
+                e.target.style.height = 'auto';
+                e.target.style.height = e.target.scrollHeight + 'px';
+              }}
+              onBlur={(e) => {
+                e.target.style.height = 'auto';
+                e.target.style.height = e.target.scrollHeight + 'px';
+              }}
+            />
+            <div className="text-right text-xs text-[var(--text-secondary)]">
+              {reportDetails.length}/200
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setShowReportModal(false)}
+              className="px-4 py-2 rounded-lg bg-[var(--card)] text-[var(--text-primary)] hover:bg-white/5"
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleSubmitReport}
+              disabled={!reportReason}
+              className="px-4 py-2 rounded-lg bg-[var(--primary)] text-white disabled:opacity-50"
+            >
+              Raporla
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Context Menu Component
+  const ContextMenu = () => {
+    if (!contextMenu) return null;
+
+    return (
+      <div 
+        className="fixed z-50 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg py-1 min-w-[200px] backdrop-blur-sm bg-opacity-95"
+        style={{ 
+          top: contextMenu.y, 
+          left: contextMenu.x,
+          transform: 'translateY(-100%)',
+          marginTop: '-8px'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-col gap-1">
+          <button 
+            onClick={() => handleReply(contextMenu.message)}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            <Reply size={16} />
+            Yanıtla
+          </button>
+          <button 
+            onClick={() => setShowReactionPicker(contextMenu.message.id)}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            <Smile size={16} />
+            Tepki Ekle
+          </button>
+          <button 
+            onClick={() => handleViewProfile(contextMenu.message.author.name)}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            <User size={16} />
+            Profili Gör
+          </button>
+          <button 
+            onClick={handleAddFriend}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            <UserPlus size={16} />
+            Arkadaş Ekle
+          </button>
+          <button 
+            onClick={() => handleReport(contextMenu.message)}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            <Flag size={16} />
+            Raporla
+          </button>
+          <button 
+            onClick={() => handleHideMessage(contextMenu.message.id)}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            {hiddenMessages.includes(contextMenu.message.id) ? <Eye size={16} /> : <EyeOff size={16} />}
+            {hiddenMessages.includes(contextMenu.message.id) ? 'Göster' : 'Gizle'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // More Menu Component
+  const MoreMenu = ({ messageId }: { messageId: string }) => {
+    if (showMoreMenu !== messageId) return null;
+
+    return (
+      <div 
+        className="absolute right-0 top-6 z-50 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg py-1 min-w-[200px] backdrop-blur-sm bg-opacity-95"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-col gap-1">
+          <button 
+            onClick={() => handleReply(messages.find(m => m.id === messageId)!)}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            <Reply size={16} />
+            Yanıtla
+          </button>
+          <button 
+            onClick={() => setShowReactionPicker(messageId)}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            <Smile size={16} />
+            Tepki Ekle
+          </button>
+          <button 
+            onClick={() => handleViewProfile(messages.find(m => m.id === messageId)!.author.name)}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            <User size={16} />
+            Profili Gör
+          </button>
+          <button 
+            onClick={handleAddFriend}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            <UserPlus size={16} />
+            Arkadaş Ekle
+          </button>
+          <button 
+            onClick={() => handleReport(messages.find(m => m.id === messageId)!)}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            <Flag size={16} />
+            Raporla
+          </button>
+          <button 
+            onClick={() => handleHideMessage(messageId)}
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+          >
+            {hiddenMessages.includes(messageId) ? <Eye size={16} /> : <EyeOff size={16} />}
+            {hiddenMessages.includes(messageId) ? 'Göster' : 'Gizle'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Geçmiş mesajları yükle
+  useEffect(() => {
+    const loadMessages = async () => {
+      const token = getCookie('access_token');
+      if (!token || typeof token !== 'string') return;
+
+      try {
+        // Önce konuşmayı kontrol et
+        const checkResponse = await fetch(`https://api.ringard.net/p2p/private/${routeUserId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        const checkData = await checkResponse.json();
+        
+        if (checkData.exists) {
+          setConversationId(checkData.conversation_id);
+          
+          // Mesajları getir
+          const messagesResponse = await fetch(`https://api.ringard.net/p2p/conversations/${checkData.conversation_id}/messages`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          const messagesData = await messagesResponse.json();
+          
+          // API mesajlarını uygulama formatına dönüştür
+          const formattedMessages = messagesData.messages.map((msg: ApiMessage) => {
+            // Mesaj içeriğini parse et ve decrypt et
+            let messageContent = msg.content;
+            if (messageContent.startsWith('dm:')) {
+              try {
+                const dmData = JSON.parse(messageContent.substring(3));
+                if (dmData.content && typeof dmData.content === 'string') {
+                  const encryptedContent = JSON.parse(dmData.content);
+                  
+                  // Gönderen veya alıcı şifrelemesini seç
+                  const isCurrentUserSender = msg.sender_id === currentUserId;
+                  const targetUserId = isCurrentUserSender ? currentUserId : routeUserId;
+                  
+                  // Şifreli mesajı çöz
+                  const decryptedContent = MessageSecurity.decryptMessage(encryptedContent, targetUserId);
+                  messageContent = decryptedContent || 'Mesaj çözülemedi';
+                  
+                  if (!decryptedContent) {
+                    console.error('Mesaj çözülemedi:', {
+                      content: dmData.content,
+                      targetUserId,
+                      isCurrentUserSender
+                    });
+                  }
+                }
+              } catch (error) {
+                console.error('Mesaj çözme hatası:', error);
+                messageContent = 'Mesaj çözülemedi';
+              }
+            }
+
+            return {
+              id: msg.id,
+              content: messageContent,
+              author: {
+                id: msg.sender_id,
+                name: msg.sender_id === currentUserId ? currentUsername : 'Diğer Kullanıcı',
+                avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
+                status: 'online'
+              },
+              timestamp: msg.created_at,
+              reactions: msg.reactions || [],
+              attachments: msg.attachments || [],
+              embeds: msg.embeds || []
+            };
+          });
+          
+          // Mesajları tarih sırasına göre sırala
+          const sortByTimestamp = (a: Message, b: Message) => {
+            return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+          };
+          formattedMessages.sort(sortByTimestamp);
+
+          setMessages(formattedMessages);
+        }
+        
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Mesajlar yüklenirken hata:', error);
+        setIsLoading(false);
+      }
+    };
+
+    loadMessages();
+  }, [routeUserId, currentUserId, currentUsername]);
+
   return (
     <DirectLayout>
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full" onClick={() => {
+        setContextMenu(null);
+        setShowMoreMenu(null);
+      }}>
         {/* Kanal Başlığı - Sabit */}
         <div className="h-14 flex items-center justify-between px-4 border-b border-white/5 bg-[var(--surface)] select-none sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <Hash className="w-5 h-5 text-[var(--text-secondary)]" />
             <div>
-              <h1 className="text-[var(--text-primary)] font-semibold">Özel Mesaj: {userId}</h1>
+              <h1 className="text-[var(--text-primary)] font-semibold">Özel Mesaj: {routeUserId}</h1>
             </div>
           </div>
           <div className="flex items-center gap-0.5 sm:gap-2">
@@ -790,224 +1157,273 @@ export default function DirectMessagePage() {
 
         {/* Mesaj Listesi */}
         <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4">
-            {messages.map((message, index) => {
-                const isSameUser = index > 0 && messages[index - 1].author.id === message.author.id;
-                const isRepliedTo = messages.some(m => m.replyTo?.id === message.id);
-                
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="animate-pulse flex space-x-4">
+                <div className="flex-1 space-y-4 py-1">
+                  <div className="h-4 bg-[var(--card)] rounded w-3/4"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 bg-[var(--card)] rounded"></div>
+                    <div className="h-4 bg-[var(--card)] rounded w-5/6"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            messages.map((message, index) => {
+              const isSameUser = index > 0 && messages[index - 1].author.id === message.author.id;
+              const isRepliedTo = messages.some(m => m.replyTo?.id === message.id);
+              const isHidden = hiddenMessages.includes(message.id);
+              
+              if (isHidden) {
                 return (
-                    <motion.div
-                        key={message.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        style={{ marginTop: isSameUser ? 1 : 16 }}
-                        className={`group flex gap-2 sm:gap-4 hover:bg-white/5 p-2 rounded-lg -mx-2`}
-                    >
-                        {!isSameUser && (
-                            <div className="flex-shrink-0">
-                                <Image
-                                    src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
-                                    alt={message.author.name}
-                                    width={32}
-                                    height={32}
-                                    className="rounded-full w-8 h-8 sm:w-10 sm:h-10"
-                                />
-                            </div>
-                        )}
-                        <div className={`flex-1 min-w-0 ${isSameUser ? 'ml-12 sm:ml-14' : ''}`}>
-                            {!isSameUser && (
-                                <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-1">
-                                    <span className="font-medium text-sm sm:text-base text-[var(--text-primary)]">
-                                        {message.author.name}
-                                    </span>
-                                    <span className="text-xs text-[var(--text-secondary)]">
-                                        {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
-                                            hour: '2-digit',
-                                            minute: '2-digit'
-                                        })}
-                                    </span>
-                                </div>
-                            )}
-                            {message.replyTo && (
-                                <div className="mb-2 text-xs bg-white/5 p-2 rounded-lg border-l-2 border-[var(--primary)]">
-                                    <div className="flex items-center gap-1 mb-1">
-                                        <Reply size={12} className="text-[var(--text-secondary)]" />
-                                        <span className="font-medium text-[var(--text-primary)]">
-                                            {message.replyTo.author.name}
-                                        </span>
-                                    </div>
-                                    <p className="text-[var(--text-secondary)] line-clamp-2">{message.replyTo.content}</p>
-                                </div>
-                            )}
-                            
-                            {/* GIF mesajlarını göster */}
-                            {message.type === 'gif' && message.gifUrl ? (
-                              <div className="relative max-w-[300px] aspect-video bg-[var(--card)] rounded-lg overflow-hidden">
-                                <img 
-                                  src={message.gifUrl} 
-                                  alt={message.gifTitle || 'GIF'}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            ) : (
-                              <p 
-                                className="text-sm sm:text-base text-[var(--text-primary)] whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through [&_blockquote]:border-l-4 [&_blockquote]:border-[var(--primary)] [&_blockquote]:pl-4 [&_blockquote]:py-2 [&_blockquote]:my-2 [&_blockquote]:bg-[var(--card)] [&_blockquote]:rounded-r-lg [&_blockquote]:shadow-sm [&_pre]:bg-[var(--card)] [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:border [&_pre]:border-[var(--border)] [&_code]:text-sm [&_code]:font-mono [&_code]:text-[var(--text-primary)] [&_img]:inline-block [&_img]:w-5 [&_img]:h-5 [&_img]:align-middle"
-                                dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}
-                              />
-                            )}
-                            
-                            {/* Reaksiyonlar */}
-                            {message.reactions && message.reactions.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mt-2">
-                                {message.reactions.map((reaction) => {
-                                  const emojiHtml = emojiCodeToHtml(reaction.emoji, emojiCategories);
-                                  
-                                  return (
-                                    <button
-                                      key={reaction.emoji}
-                                      onClick={() => handleAddReaction(message.id, reaction.emoji)}
-                                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all duration-200 ${
-                                        reaction.reacted 
-                                          ? 'bg-[var(--primary)]/20 text-[var(--primary)] hover:bg-[var(--primary)]/30' 
-                                          : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'
-                                      }`}
-                                    >
-                                      <span dangerouslySetInnerHTML={{ __html: emojiHtml }} className="w-4 h-4 flex items-center justify-center" />
-                                      <span className="font-medium">{reaction.count}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                        </div>
-                        <div className="flex items-start gap-0.5 sm:gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                                onClick={() => handleReply(message)}
-                                className="p-1 rounded hover:bg-white/5 text-[var(--text-secondary)]" 
-                                title="Yanıtla"
-                            >
-                                <Reply size={14} className="sm:w-4 sm:h-4" />
-                            </button>
-                            
-                            {/* Reaksiyon Ekleme Butonu */}
-                            <div className="relative">
-                                <button 
-                                    onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
-                                    className="p-1 rounded hover:bg-white/5 text-[var(--text-secondary)]" 
-                                    title="Reaksiyon Ekle"
-                                >
-                                    <Smile size={14} className="sm:w-4 sm:h-4" />
-                                </button>
-                                {showReactionPicker === message.id && (
-                                    <ReactionPicker 
-                                        messageId={message.id} 
-                                        onClose={() => setShowReactionPicker(null)} 
-                                    />
-                                )}
-                            </div>
-                        </div>
-                    </motion.div>
+                  <div
+                    key={message.id}
+                    className="flex items-center justify-center p-4 bg-[var(--card)] rounded-lg cursor-pointer"
+                    onClick={() => handleHideMessage(message.id)}
+                  >
+                    <Eye size={16} className="mr-2 text-[var(--text-secondary)]" />
+                    <span className="text-[var(--text-secondary)]">Bu mesaj gizlendi</span>
+                  </div>
                 );
-            })}
-            <div ref={messagesEndRef} />
+              }
+              
+              return (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{ marginTop: isSameUser ? 1 : 16 }}
+                  className={`group flex gap-2 sm:gap-4 hover:bg-white/5 p-1 rounded-lg -mx-2 relative`}
+                  onContextMenu={(e) => handleContextMenu(e, message)}
+                >
+                  {!isSameUser && (
+                    <div className="flex-shrink-0">
+                      <Image
+                        src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
+                        alt={message.author.name}
+                        width={32}
+                        height={32}
+                        className="rounded-full w-8 h-8 sm:w-10 sm:h-10"
+                      />
+                    </div>
+                  )}
+                  <div className={`flex-1 min-w-0 ${isSameUser ? 'ml-12 sm:ml-14' : ''}`}>
+                    {!isSameUser && (
+                      <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-1">
+                        <span className="font-medium text-sm sm:text-base text-[var(--text-primary)]">
+                          {message.author.name}
+                        </span>
+                        <span className="text-xs text-[var(--text-secondary)]">
+                          {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                    )}
+                    {message.replyTo && (
+                      <div className="mb-2 text-xs bg-white/5 p-2 rounded-lg border-l-2 border-[var(--primary)]">
+                        <div className="flex items-center gap-1 mb-1">
+                          <Reply size={12} className="text-[var(--text-secondary)]" />
+                          <span className="font-medium text-[var(--text-primary)]">
+                            {message.replyTo.author.name}
+                          </span>
+                        </div>
+                        <p className="text-[var(--text-secondary)] line-clamp-2">{message.replyTo.content}</p>
+                      </div>
+                    )}
+                  
+                    {/* GIF mesajlarını göster */}
+                    <div className={`rounded-lg ${
+                      message.author.id === currentUserId
+                        ? 'text-white'
+                        : 'bg-gray-100/10 text-white'
+                    }`}>
+                      {renderMessageContent(message.content)}
+                    </div>
+                    
+                    {/* Reaksiyonlar */}
+                    {message.reactions && message.reactions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {message.reactions.map((reaction) => {
+                          const hasReacted = reaction.users.includes(currentUserId);
+                          const emojiHtml = emojiCodeToHtml(reaction.emoji, emojiCategories);
+                          
+                          return (
+                            <button
+                              key={reaction.emoji}
+                              onClick={() => handleAddReaction(message.id, reaction.emoji)}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all duration-200 ${
+                                hasReacted 
+                                  ? 'bg-[var(--primary)]/20 text-[var(--primary)] hover:bg-[var(--primary)]/30' 
+                                  : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'
+                              }`}
+                            >
+                              <span dangerouslySetInnerHTML={{ __html: emojiHtml }} className="w-4 h-4 flex items-center justify-center" />
+                              <span className="font-medium">{reaction.count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-start gap-0.5 sm:gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => handleReply(message)}
+                      className="p-1 rounded hover:bg-white/5 text-[var(--text-secondary)]" 
+                      title="Yanıtla"
+                    >
+                      <Reply size={14} className="sm:w-4 sm:h-4" />
+                    </button>
+                  
+                    {/* Reaksiyon Ekleme Butonu */}
+                    <div className="relative">
+                      <button 
+                        onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
+                        className="p-1 rounded hover:bg-white/5 text-[var(--text-secondary)]" 
+                        title="Reaksiyon Ekle"
+                      >
+                        <Smile size={14} className="sm:w-4 sm:h-4" />
+                      </button>
+                      {showReactionPicker === message.id && (
+                        <ReactionPicker 
+                          messageId={message.id} 
+                          onClose={() => setShowReactionPicker(null)} 
+                        />
+                      )}
+                    </div>
+
+                    {/* More Menu Button */}
+                    <div className="relative">
+                      <button 
+                        onClick={(e) => handleMoreClick(e, message.id)}
+                        className="p-1 rounded hover:bg-white/5 text-[var(--text-secondary)]" 
+                        title="Daha Fazla"
+                      >
+                        <MoreVertical size={14} className="sm:w-4 sm:h-4" />
+                      </button>
+                      <MoreMenu messageId={message.id} />
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Mesaj Giriş Alanı - Sabit */}
         <div className="p-2 sm:p-4 bg-[var(--surface)] sticky bottom-0 z-10">
-            {replyingTo && (
-                <div className="mb-2 flex items-center justify-between bg-[var(--card)] p-2 rounded-lg border-l-2 border-[var(--primary)]">
-                    <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                            <Reply size={14} className="text-[var(--text-secondary)]" />
-                            <span className="text-sm text-[var(--text-secondary)]">
-                                {replyingTo.author.name} yanıtlanıyor
-                            </span>
-                        </div>
-                        <p className="text-sm text-[var(--text-primary)] ml-6 line-clamp-2">
-                            {replyingTo.content}
-                        </p>
-                    </div>
-                    <button 
-                        onClick={() => setReplyingTo(null)}
-                        className="p-1 hover:bg-white/5 rounded"
-                    >
-                        <X size={14} className="text-[var(--text-secondary)]" />
-                    </button>
+          {replyingTo && (
+            <div className="mb-2 flex items-center justify-between bg-[var(--card)] p-2 rounded-lg border-l-2 border-[var(--primary)]">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <Reply size={14} className="text-[var(--text-secondary)]" />
+                  <span className="text-sm text-[var(--text-secondary)]">
+                    {replyingTo.author.name} yanıtlanıyor
+                  </span>
                 </div>
-            )}
-            <div className="flex items-center gap-1 sm:gap-2 bg-[var(--card)] rounded-lg p-1.5 sm:p-2">
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileSelect}
-                    className="hidden"
-                    multiple
-                />
-                <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
-                >
-                    <Paperclip size={18} className="sm:w-5 sm:h-5" />
-                </button>
-                <textarea
-                    ref={inputRef}
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendMessage();
-                        }
-                    }}
-                    placeholder={`Mesajınızı yazın...`}
-                    className="flex-1 bg-transparent border-none outline-none text-sm sm:text-base text-[var(--text-primary)] placeholder-[var(--text-secondary)] resize-none min-h-[40px] max-h-[200px] py-2"
-                    rows={1}
-                />
-                <div className="flex items-center gap-0.5 sm:gap-1">
-                    <button 
-                        onClick={handleMention}
-                        className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
-                    >
-                        <AtSign size={18} className="sm:w-5 sm:h-5" />
-                    </button>
-                    <div className="relative">
-                        <button 
-                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                            className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
-                        >
-                            <Smile size={18} className="sm:w-5 sm:h-5" />
-                        </button>
-                        {showEmojiPicker && (
-                            <EmojiPicker 
-                                onEmojiSelect={handleEmojiSelect} 
-                                onClose={() => setShowEmojiPicker(false)} 
-                            />
-                        )}
-                    </div>
-                    <div className="relative">
-                        <button 
-                            onClick={() => setShowGifPicker(!showGifPicker)}
-                            className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
-                        >
-                            <Gift size={18} className="sm:w-5 sm:h-5" />
-                        </button>
-                        {showGifPicker && (
-                            <GifPicker 
-                                onSelect={handleGifSelect}
-                                onClose={() => setShowGifPicker(false)}
-                            />
-                        )}
-                    </div>
-                    <button
-                        onClick={handleSendMessage}
-                        disabled={!messageInput.trim()}
-                        className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--primary)] disabled:opacity-50"
-                    >
-                        <Send size={18} className="sm:w-5 sm:h-5" />
-                    </button>
-                </div>
+                <p className="text-sm text-[var(--text-primary)] ml-6 line-clamp-2">
+                  {replyingTo.content}
+                </p>
+              </div>
+              <button 
+                onClick={() => setReplyingTo(null)}
+                className="p-1 hover:bg-white/5 rounded"
+              >
+                <X size={14} className="text-[var(--text-secondary)]" />
+              </button>
             </div>
+          )}
+          <div className="flex items-center gap-1 sm:gap-2 bg-[var(--card)] rounded-lg p-1.5 sm:p-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              className="hidden"
+              multiple
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
+            >
+              <Paperclip size={18} className="sm:w-5 sm:h-5" />
+            </button>
+            <textarea
+              ref={inputRef}
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              placeholder={`Mesajınızı yazın...`}
+              className="flex-1 bg-transparent border-none outline-none text-sm sm:text-base text-[var(--text-primary)] placeholder-[var(--text-secondary)] resize-none min-h-[40px] max-h-[200px] py-2 focus:ring-0"
+              rows={1}
+              onFocus={(e) => {
+                e.target.style.height = 'auto';
+                e.target.style.height = e.target.scrollHeight + 'px';
+              }}
+              onBlur={(e) => {
+                e.target.style.height = 'auto';
+                e.target.style.height = e.target.scrollHeight + 'px';
+              }}
+            />
+            <div className="flex items-center gap-0.5 sm:gap-1">
+              <button 
+                onClick={handleMention}
+                className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
+              >
+                <AtSign size={18} className="sm:w-5 sm:h-5" />
+              </button>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
+                >
+                  <Smile size={18} className="sm:w-5 sm:h-5" />
+                </button>
+                {showEmojiPicker && (
+                  <EmojiPicker 
+                    onEmojiSelect={handleEmojiSelect} 
+                    onClose={() => setShowEmojiPicker(false)} 
+                  />
+                )}
+              </div>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowGifPicker(!showGifPicker)}
+                  className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
+                >
+                  <Gift size={18} className="sm:w-5 sm:h-5" />
+                </button>
+                {showGifPicker && (
+                  <GifPicker 
+                    onSelect={handleGifSelect}
+                    onClose={() => setShowGifPicker(false)}
+                  />
+                )}
+              </div>
+              <button
+                onClick={handleSendMessage}
+                disabled={!messageInput.trim()}
+                className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--primary)] disabled:opacity-50"
+              >
+                <Send size={18} className="sm:w-5 sm:h-5" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Context Menu */}
+      <ContextMenu />
+
+      {/* Report Modal */}
+      <ReportModal />
     </DirectLayout>
   );
 }

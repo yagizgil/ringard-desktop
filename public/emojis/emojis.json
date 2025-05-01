@@ -3,8 +3,8 @@
     "name": "Yüz İfadeleri",
     "emojis": [
       { "id": "smile", "name": "smile", "url": "/emojis/smile.png" },
-      { "id": "laugh", "name": "laugh", "url": "/emojis/laugh.png" },
-      { "id": "wink", "name": "wink", "url": "/emojis/wink.png" },
+      { "id": "angel_smile", "name": "angel_smile", "url": "/emojis/angel_smile.png" },
+      { "id": "cyanstar", "name": "cyanstar", "url": "/emojis/cyan_star.gif" },
       { "id": "heart", "name": "heart", "url": "/emojis/heart.png" },
       { "id": "sad", "name": "sad", "url": "/emojis/sad.png" },
       { "id": "angry", "name": "angry", "url": "/emojis/angry.png" },

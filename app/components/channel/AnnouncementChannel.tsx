@@ -27,9 +27,27 @@ const SAMPLE_ANNOUNCEMENTS: Message[] = [
     timestamp: '2025-03-28T09:00:00',
     pinned: true,
     reactions: [
-      { emoji: '🎉', count: 25, reacted: true },
-      { emoji: '👍', count: 15, reacted: false },
-      { emoji: '🚀', count: 10, reacted: false }
+      { 
+        emoji: '🎉', 
+        count: 25, 
+        users: [], 
+        userId: '1',
+        timestamp: new Date().toISOString()
+      },
+      { 
+        emoji: '👍', 
+        count: 15, 
+        users: [], 
+        userId: '1',
+        timestamp: new Date().toISOString()
+      },
+      { 
+        emoji: '🚀', 
+        count: 10, 
+        users: [], 
+        userId: '1',
+        timestamp: new Date().toISOString()
+      }
     ]
   },
   {
@@ -44,8 +62,20 @@ const SAMPLE_ANNOUNCEMENTS: Message[] = [
     },
     timestamp: '2025-03-28T09:05:00',
     reactions: [
-      { emoji: '👍', count: 15, reacted: true },
-      { emoji: '📝', count: 5, reacted: false }
+      { 
+        emoji: '👍', 
+        count: 15, 
+        users: [], 
+        userId: '2',
+        timestamp: new Date().toISOString()
+      },
+      { 
+        emoji: '📝', 
+        count: 5, 
+        users: [], 
+        userId: '2',
+        timestamp: new Date().toISOString()
+      }
     ]
   }
 ];
@@ -180,7 +210,7 @@ export default function AnnouncementChannel({ channelId, channelName, topic, isA
                   <button
                     key={index}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all ${
-                      reaction.reacted
+                      reaction.users.includes(reaction.userId)
                         ? 'bg-[var(--primary)] text-white scale-110'
                         : 'bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:scale-105'
                     }`}

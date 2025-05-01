@@ -12,6 +12,14 @@ interface TextChannelProps {
   topic?: string;
 }
 
+interface Reaction {
+  emoji: string;
+  count: number;
+  users: string[];
+  userId: string;
+  timestamp: string;
+}
+
 const SAMPLE_MESSAGES: Message[] = [
   {
     id: '1',
@@ -37,8 +45,20 @@ const SAMPLE_MESSAGES: Message[] = [
     },
     timestamp: '2025-03-28T09:05:00',
     reactions: [
-      { emoji: '❤️', count: 3, reacted: true },
-      { emoji: '👍', count: 2, reacted: false }
+      { 
+        emoji: '❤️', 
+        count: 3, 
+        users: [], 
+        userId: '1',
+        timestamp: new Date().toISOString()
+      },
+      { 
+        emoji: '👍', 
+        count: 2, 
+        users: [], 
+        userId: '1',
+        timestamp: new Date().toISOString()
+      }
     ]
   },
   {
@@ -224,6 +244,45 @@ export default function TextChannel({ channelId, channelName, topic }: TextChann
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleReaction = (emoji: string) => {
+    const newMessages = messages.map((message) => {
+      if (message.reactions) {
+        message.reactions = message.reactions.map((reaction) => {
+          if (reaction.emoji === emoji) {
+            const userId = '1';
+            if (reaction.users.includes(userId)) {
+              reaction.count -= 1;
+              reaction.users = reaction.users.filter((id) => id !== userId);
+            } else {
+              reaction.count += 1;
+              reaction.users.push(userId);
+            }
+          }
+          return reaction;
+        });
+      }
+      return message;
+    });
+    setMessages(newMessages);
+  };
+
+  const renderReactionButtons = (reactions: Reaction[]) => {
+    return reactions.map((reaction, index) => (
+      <button
+        key={index}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all ${
+          reaction.users.includes('1')
+            ? 'bg-[var(--primary)] text-white scale-110'
+            : 'bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:scale-105'
+        }`}
+        onClick={() => handleReaction(reaction.emoji)}
+      >
+        <span>{reaction.emoji}</span>
+        <span>{reaction.count}</span>
+      </button>
+    ));
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Kanal Başlığı - Sabit */}
@@ -342,19 +401,7 @@ export default function TextChannel({ channelId, channelName, topic }: TextChann
               )}
               {message.reactions && message.reactions.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {message.reactions.map((reaction, index) => (
-                    <button
-                      key={index}
-                      className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs sm:text-sm ${
-                        reaction.reacted
-                          ? 'bg-[var(--primary)] text-white'
-                          : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'
-                      }`}
-                    >
-                      <span>{reaction.emoji}</span>
-                      <span>{reaction.count}</span>
-                    </button>
-                  ))}
+                  {renderReactionButtons(message.reactions)}
                 </div>
               )}
             </div>
