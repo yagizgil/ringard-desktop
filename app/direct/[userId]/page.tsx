@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { Message as ChannelMessage, Reaction } from '@/app/types/channel';
+import { Message, MessageReply } from '@/app/types/message';
 import { Hash, AtSign, Smile, Paperclip, Gift, Send, Pin, Reply, Edit, MoreVertical, Search, Bell, Inbox, HelpCircle, Users, X, Plus, Eye, EyeOff, UserPlus, Flag, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DirectLayout from '@/app/components/layout/DirectLayout';
@@ -16,6 +17,8 @@ import EmojiPicker from '@/app/components/EmojiPicker';
 import GifPicker from '@/app/components/GifPicker';
 import { loadEmojis, EmojiCategory, Emoji } from '@/app/lib/api/emojis';
 import { processMessageEmojis } from '@/app/lib/utils/emojiUtils';
+// Stil bileşenlerini import et
+import { DiscordStyle, WhatsAppStyle, BubblesStyle, ModernStyle } from '@/app/messages/styles/MessageStyles';
 
 // Emoji kodunu HTML'e dönüştür
 const emojiCodeToHtml = (emojiCode: string, emojis: EmojiCategory[]): string => {
@@ -48,25 +51,6 @@ const encryptMessage = (message: string, userId: string): string => {
   const key = ENCRYPTION_PREFIX + CryptoJS.MD5(userId).toString() + ENCRYPTION_SUFFIX;
   return CryptoJS.AES.encrypt(message, key).toString();
 };
-
-interface Message extends ChannelMessage {
-  id: string;
-  content: string;
-  author: {
-    id: string;
-    name: string;
-    avatar: string;
-    role?: string;
-    status: 'online' | 'idle' | 'dnd' | 'offline';
-  };
-  timestamp: string;
-  reactions: Reaction[];
-  attachments: any[];
-  embeds: any[];
-  gifUrl?: string;
-  gifTitle?: string;
-  type?: 'text' | 'gif';
-}
 
 interface ApiMessage {
   id: string;
@@ -114,6 +98,8 @@ export default function DirectMessagePage() {
   const [messageViewMode, setMessageViewMode] = useState<'discord' | 'whatsapp' | 'bubbles' | 'modern'>('discord');
   const [messageFontSize, setMessageFontSize] = useState<number>(16);
   const [showFontSizeSlider, setShowFontSizeSlider] = useState<boolean>(false);
+  const fontSizeSliderRef = useRef<HTMLDivElement>(null);
+  const fontSizeButtonRef = useRef<HTMLButtonElement>(null);
   
   // WebSocket bağlantısı
   const { connect, disconnect, sendDirectMessage, messages: wsMessages, isConnected } = useWebSocket();
@@ -394,10 +380,31 @@ export default function DirectMessagePage() {
           const isMessageExists = messages.some(m => m.id === messageId);
           
           if (!isMessageExists) {
-            // Yanıt verisi için ilgili mesajı bul
-            let replyToMessage: Message | undefined;
+            // replyTo verisini işle
+            let replyToMessage: MessageReply | undefined = undefined;
             if (replyData) {
-              replyToMessage = messages.find(m => m.id === replyData.id);
+              // Mevcut mesajlar arasında replyTo'ya ait mesaj aranır
+              const foundMessage = messages.find(m => m.id === replyData.id);
+              if (foundMessage) {
+                replyToMessage = {
+                  id: foundMessage.id,
+                  content: foundMessage.content,
+                  author: {
+                    id: foundMessage.author.id,
+                    name: foundMessage.author.name
+                  }
+                };
+              } else {
+                // Mesaj bulunamadıysa replyData'dan bir replyTo oluştur
+                replyToMessage = {
+                  id: replyData.id,
+                  content: replyData.content,
+                  author: {
+                    id: replyData.author.id,
+                    name: replyData.author.name
+                  }
+                };
+              }
             }
             
             // Mesajı oluştur
@@ -438,6 +445,56 @@ export default function DirectMessagePage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsMessages]);
+
+  // Kullanıcı tercihlerini localStorage'dan al veya varsayılan değerleri kullan
+  useEffect(() => {
+    const savedMessageViewMode = localStorage.getItem('messageViewMode');
+    const savedMessageFontSize = localStorage.getItem('messageFontSize');
+    
+    if (savedMessageViewMode) {
+      setMessageViewMode(savedMessageViewMode as 'discord' | 'whatsapp' | 'bubbles' | 'modern');
+    }
+    
+    if (savedMessageFontSize) {
+      setMessageFontSize(parseInt(savedMessageFontSize));
+    }
+  }, []);
+  
+  // Font size slideri dışında bir yere tıklandığında slider'ı kapat
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Eğer slider açıksa ve tıklanan yer slider veya slider butonu değilse kapat
+      if (
+        showFontSizeSlider && 
+        fontSizeSliderRef.current && 
+        fontSizeButtonRef.current && 
+        !fontSizeSliderRef.current.contains(event.target as Node) &&
+        !fontSizeButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowFontSizeSlider(false);
+      }
+    };
+    
+    // Event listener'ı ekle
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showFontSizeSlider]);
+
+  // Mesaj görünüm modunu güncelle ve localStorage'a kaydet
+  const updateMessageViewMode = (mode: 'discord' | 'whatsapp' | 'bubbles' | 'modern') => {
+    setMessageViewMode(mode);
+    localStorage.setItem('messageViewMode', mode);
+  };
+  
+  // Mesaj font boyutunu güncelle ve localStorage'a kaydet
+  const updateMessageFontSize = (size: number) => {
+    setMessageFontSize(size);
+    localStorage.setItem('messageFontSize', size.toString());
+  };
 
   // Mesaj gönderme fonksiyonu
   const sendMessage = async (content: string) => {
@@ -842,7 +899,17 @@ export default function DirectMessagePage() {
 
   const handleMoreClick = (e: React.MouseEvent, messageId: string) => {
     e.stopPropagation();
+    
+    // Eğer başka bir menü açıksa, onu kapat
+    if (showMoreMenu && showMoreMenu !== messageId) {
+      setShowMoreMenu(null);
+    }
+    
+    // Şimdiki menüyü aç/kapat
     setShowMoreMenu(showMoreMenu === messageId ? null : messageId);
+    
+    // Context menüsünü kapat
+    setContextMenu(null);
   };
 
   const handleReport = (message: Message) => {
@@ -901,7 +968,7 @@ export default function DirectMessagePage() {
         
         if (gifData.type === 'gif' && gifData.content) {
           return (
-            <div className="my-2 max-w-full">
+            <div className="my-1 max-w-full">
               <img 
                 src={gifData.content} 
                 alt={gifData.alt || 'GIF'} 
@@ -918,6 +985,48 @@ export default function DirectMessagePage() {
     
     // Normal metin mesajı
     return formatAndProcessText(content);
+  };
+
+  // Çift tıklama ve sürükleme ile yanıtlama işleyicisi
+  const handleMessageDoubleClick = (message: Message) => {
+    handleReply(message);
+  };
+
+  const handleDragStart = (e: React.DragEvent, message: Message) => {
+    e.dataTransfer.setData('messageId', message.id);
+    e.dataTransfer.effectAllowed = 'copy';
+    
+    // Sürükleme başladığında mesajın görünümünü değiştir
+    const target = e.currentTarget as HTMLElement;
+    if (target) {
+      target.style.opacity = '0.7';
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    // Sürükleme bittiğinde stilini normale döndür
+    const target = e.currentTarget as HTMLElement;
+    if (target) {
+      target.style.opacity = '1';
+    }
+  };
+
+  const handleMessageDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    
+    const messageId = e.dataTransfer.getData('messageId');
+    if (messageId) {
+      const message = messages.find(m => m.id === messageId);
+      if (message) {
+        handleReply(message);
+      }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    // Sürükleme için izin ver
+    e.dataTransfer.dropEffect = 'copy';
   };
 
   // Report Modal Component
@@ -1162,9 +1271,17 @@ export default function DirectMessagePage() {
           const formattedMessages = messagesData.messages.map((msg: ApiMessage) => {
             // Mesaj içeriğini parse et ve decrypt et
             let messageContent = msg.content;
+            let replyToData = null;
+            
             if (messageContent.startsWith('dm:')) {
               try {
                 const dmData = JSON.parse(messageContent.substring(3));
+                
+                // Yanıt verisi varsa al
+                if (dmData.replyTo) {
+                  replyToData = dmData.replyTo;
+                }
+                
                 if (dmData.content && typeof dmData.content === 'string') {
                   // JSON parse işlemini güvenli bir şekilde yap
                   let msgEncryptedContent;
@@ -1181,10 +1298,18 @@ export default function DirectMessagePage() {
                   
                   // Şifreli mesajı çöz
                   const decryptedContent = MessageSecurity.decryptMessage(msgEncryptedContent, targetUserId);
-                  console.log(decryptedContent);
-                  messageContent = decryptedContent || 'Mesaj çözülemedi';
                   
-                  if (!decryptedContent) {
+                  // Özel GIF mesajı kontrolü
+                  if (dmData.type === 'gif') {
+                    messageContent = `dm:${JSON.stringify({
+                      type: 'gif',
+                      content: dmData.content
+                    })}`;
+                  } else {
+                    messageContent = decryptedContent || 'Mesaj çözülemedi';
+                  }
+                  
+                  if (!decryptedContent && dmData.type !== 'gif') {
                     console.error('Mesaj çözülemedi:', {
                       content: dmData.content,
                       targetUserId,
@@ -1198,6 +1323,7 @@ export default function DirectMessagePage() {
               }
             }
 
+            // Mesajı oluştur
             return {
               id: msg.id,
               content: messageContent,
@@ -1210,7 +1336,8 @@ export default function DirectMessagePage() {
               timestamp: msg.created_at,
               reactions: msg.reactions || [],
               attachments: msg.attachments || [],
-              embeds: msg.embeds || []
+              embeds: msg.embeds || [],
+              replyTo: replyToData
             };
           });
           
@@ -1220,7 +1347,36 @@ export default function DirectMessagePage() {
           };
           
           formattedMessages.sort(sortByTimestamp);
-          setMessages(formattedMessages);
+          
+          // İkinci geçiş: replyTo referanslarını düzgün mesaj objelerine dönüştür
+          const processedMessages = formattedMessages.map((message: Message) => {
+            if (!message.replyTo) return message;
+            
+            // replyTo bir string ID ise, gerçek mesaj objesini bul
+            const replyId = message.replyTo?.id;
+            if (!replyId) return message;
+            
+            const replyToMessage = formattedMessages.find((m: Message) => m.id === replyId);
+            
+            if (replyToMessage) {
+              // Tam mesaj referansı ile replyTo'yu güncelle
+              return {
+                ...message,
+                replyTo: {
+                  id: replyToMessage.id,
+                  content: replyToMessage.content,
+                  author: {
+                    id: replyToMessage.author.id,
+                    name: replyToMessage.author.name
+                  }
+                }
+              };
+            }
+            
+            return message;
+          });
+          
+          setMessages(processedMessages);
         }
         
         setIsLoading(false);
@@ -1236,10 +1392,15 @@ export default function DirectMessagePage() {
 
   return (
     <DirectLayout>
-      <div className="flex flex-col h-full" onClick={() => {
-        setContextMenu(null);
-        setShowMoreMenu(null);
-      }}>
+      <div 
+        className="flex flex-col h-full" 
+        onClick={() => {
+          setContextMenu(null);
+          setShowMoreMenu(null);
+        }}
+        onDrop={handleMessageDrop}
+        onDragOver={handleDragOver}
+      >
         {/* Kanal Başlığı - Sabit */}
         <div className="h-14 flex items-center justify-between px-4 border-b border-white/5 bg-[var(--surface)] select-none sticky top-0 z-10">
           <div className="flex items-center gap-2">
@@ -1292,7 +1453,7 @@ export default function DirectMessagePage() {
               <select
                 id="viewMode"
                 value={messageViewMode}
-                onChange={(e) => setMessageViewMode(e.target.value as 'discord' | 'whatsapp' | 'bubbles' | 'modern')}
+                onChange={(e) => updateMessageViewMode(e.target.value as 'discord' | 'whatsapp' | 'bubbles' | 'modern')}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               >
                 <option value="discord">Discord Stili</option>
@@ -1304,6 +1465,7 @@ export default function DirectMessagePage() {
             
             <div className="relative">
               <button 
+                ref={fontSizeButtonRef}
                 onClick={() => setShowFontSizeSlider(!showFontSizeSlider)}
                 className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
                 title="Metin Boyutu"
@@ -1316,7 +1478,10 @@ export default function DirectMessagePage() {
               </button>
               
               {showFontSizeSlider && (
-                <div className="absolute right-0 top-full mt-2 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg z-20 w-48">
+                <div 
+                  ref={fontSizeSliderRef}
+                  className="absolute right-0 top-full mt-2 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg z-20 w-48"
+                >
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-[var(--text-primary)]">Metin Boyutu</span>
@@ -1327,7 +1492,7 @@ export default function DirectMessagePage() {
                       min="12" 
                       max="24" 
                       value={messageFontSize}
-                      onChange={(e) => setMessageFontSize(parseInt(e.target.value))}
+                      onChange={(e) => updateMessageFontSize(parseInt(e.target.value))}
                       className="w-full accent-[var(--primary)]"
                     />
                     <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
@@ -1357,7 +1522,7 @@ export default function DirectMessagePage() {
         </div>
 
         {/* Mesaj Listesi */}
-        <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-2 sm:p-4">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <div className="animate-pulse flex space-x-4">
@@ -1390,438 +1555,56 @@ export default function DirectMessagePage() {
                 );
               }
               
-              // WhatsApp stili
-              if (messageViewMode === 'whatsapp') {
-                return (
-                  <motion.div
-                    key={message.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-3`}
-                    onContextMenu={(e) => handleContextMenu(e, message)}
-                  >
-                    <div className="max-w-[75%]">
-                      {message.replyTo && (
-                        <div className={`mb-1 text-xs bg-[#f0f0f0]/30 p-2 rounded-t ${
-                          isCurrentUser ? 'border-r-2 border-[#4fce5d]' : 'border-l-2 border-[#34b7f1]'
-                        }`}>
-                          <div className="flex items-center gap-1">
-                            <Reply size={12} className="text-[#667781]" />
-                            <span className="font-medium text-[#667781]">
-                              {message.replyTo.author.name}
-                            </span>
-                          </div>
-                          <p className="text-[#667781] line-clamp-1 mt-1">{message.replyTo.content}</p>
-                        </div>
-                      )}
-                      
-                      <div className={`p-2 rounded-lg ${
-                        isCurrentUser 
-                          ? 'bg-[#dcf8c6] text-[#303030] ml-auto' 
-                          : 'bg-white text-[#303030]'
-                      }`}>
-                        <div className="break-words whitespace-pre-wrap">
-                          {renderMessageContent(message.content)}
-                        </div>
-                        
-                        <div className="text-right mt-1">
-                          <span className="text-[10px] text-[#667781]">
-                            {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {showReactionPicker === message.id && (
-                      <div className={`absolute ${isCurrentUser ? 'right-0' : 'left-0'} mt-1 z-10`}>
-                        <ReactionPicker 
-                          messageId={message.id} 
-                          onClose={() => setShowReactionPicker(null)} 
-                        />
-                      </div>
-                    )}
-                  </motion.div>
-                );
-              }
+              // Mesajı sürüklenebilir ve çift tıklanabilir yap
+              const messageProps = {
+                message,
+                isCurrentUser,
+                isSameUser,
+                currentUserId,
+                messageFontSize,
+                renderMessageContent,
+                handleReply,
+                handleContextMenu,
+                handleMoreClick,
+                setShowReactionPicker,
+                showReactionPicker,
+                emojiCodeToHtml,
+                emojiCategories,
+                handleAddReaction,
+                ReactionPicker,
+                MoreMenu
+              };
               
-              // Modern stili
-              if (messageViewMode === 'modern') {
-                return (
-                  <motion.div
-                    key={message.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="my-4 px-2 relative group"
-                    onContextMenu={(e) => handleContextMenu(e, message)}
-                  >
-                    <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} items-start`}>
-                      {!isCurrentUser && (
-                        <div className="flex-shrink-0 mr-3 mt-1">
-                          <Image
-                            src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
-                            alt={message.author.name}
-                            width={36}
-                            height={36}
-                            className="rounded-full shadow-md"
-                          />
-                        </div>
-                      )}
-                      <div className={`max-w-[75%]`}>
-                        {!isSameUser && (
-                          <div className={`text-xs mb-1 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
-                            <span className="font-medium text-[var(--text-secondary)] mr-2">
-                              {message.author.name}
-                            </span>
-                            <span className="text-[var(--text-muted)]">
-                              {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {message.replyTo && (
-                          <div className={`mb-2 text-xs bg-[var(--card)]/10 p-2 rounded border-l-2 ${
-                            isCurrentUser 
-                              ? 'bg-[var(--primary)]/10 border-[var(--primary)] ml-auto text-right' 
-                              : 'bg-[var(--text-secondary)]/10 border-[var(--text-secondary)]'
-                          }`}>
-                            <div className="flex items-center gap-1 mb-1">
-                              <Reply size={12} className="text-[var(--text-secondary)]" />
-                              <span className="font-medium text-[var(--text-secondary)]">
-                                {message.replyTo.author.name}
-                              </span>
-                            </div>
-                            <p className="text-[var(--text-secondary)] line-clamp-2">{message.replyTo.content}</p>
-                          </div>
-                        )}
-                        
-                        <div className={`rounded-2xl px-4 py-3 shadow-sm ${
-                          isCurrentUser 
-                            ? 'bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] text-white' 
-                            : 'bg-[var(--card)] text-[var(--text-primary)]'
-                        }`} style={{ fontSize: `${messageFontSize}px` }}>
-                          {renderMessageContent(message.content)}
-                        </div>
-                        
-                        {message.reactions && message.reactions.length > 0 && (
-                          <div className={`flex flex-wrap gap-1 mt-1 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-                            {message.reactions.map((reaction) => {
-                              const hasReacted = reaction.users.includes(currentUserId);
-                              const emojiHtml = emojiCodeToHtml(reaction.emoji, emojiCategories);
-                              
-                              return (
-                                <button
-                                  key={reaction.emoji}
-                                  onClick={() => handleAddReaction(message.id, reaction.emoji)}
-                                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
-                                    hasReacted 
-                                      ? 'bg-[var(--primary)]/20 text-[var(--primary)]' 
-                                      : 'bg-[var(--card)] text-[var(--text-secondary)]'
-                                  }`}
-                                >
-                                  <span dangerouslySetInnerHTML={{ __html: emojiHtml }} className="w-3 h-3" />
-                                  <span className="font-medium">{reaction.count}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                      {isCurrentUser && (
-                        <div className="flex-shrink-0 ml-3 mt-1">
-                          <Image
-                            src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
-                            alt={message.author.name}
-                            width={36}
-                            height={36}
-                            className="rounded-full shadow-md"
-                          />
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className={`mt-1 flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                        <button 
-                          onClick={() => handleReply(message)}
-                          className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
-                          title="Yanıtla"
-                        >
-                          <Reply size={12} />
-                        </button>
-                        <button 
-                          onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
-                          className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
-                          title="Reaksiyon Ekle"
-                        >
-                          <Smile size={12} />
-                        </button>
-                        <button 
-                          onClick={(e) => handleMoreClick(e, message.id)}
-                          className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
-                          title="Daha Fazla"
-                        >
-                          <MoreVertical size={12} />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {showReactionPicker === message.id && (
-                      <div className="absolute left-1/2 bottom-0 transform -translate-x-1/2 translate-y-full mt-1 z-10">
-                        <ReactionPicker 
-                          messageId={message.id} 
-                          onClose={() => setShowReactionPicker(null)} 
-                        />
-                      </div>
-                    )}
-                    <MoreMenu messageId={message.id} />
-                  </motion.div>
-                );
-              }
-
-              // Baloncuklar stili
-              if (messageViewMode === 'bubbles') {
-                return (
-                  <motion.div
-                    key={message.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`group flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-3 relative`}
-                    onContextMenu={(e) => handleContextMenu(e, message)}
-                  >
-                    {!isCurrentUser && (!isSameUser || true) && (
-                      <Image
-                        src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
-                        alt={message.author.name}
-                        width={28}
-                        height={28}
-                        className="rounded-full mr-2 self-end mb-1 flex-shrink-0"
-                      />
-                    )}
-                    <div className="flex flex-col max-w-[75%]">
-                      {!isSameUser && (
-                        <div className={`text-xs mb-1 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
-                          <span className={`font-medium ${isCurrentUser ? 'text-[var(--primary)]' : 'text-[var(--text-secondary)]'}`}>
-                            {message.author.name}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {message.replyTo && (
-                        <div className={`mb-2 text-xs bg-white/5 p-1.5 rounded ${isCurrentUser ? 'rounded-tr-none ml-auto' : 'rounded-tl-none'} max-w-[100%]`}>
-                          <p className="text-[var(--text-secondary)] line-clamp-1">
-                            <span className="font-medium text-[var(--text-primary)] mr-1">
-                              {message.replyTo.author.name}:
-                            </span>
-                            {message.replyTo.content}
-                          </p>
-                        </div>
-                      )}
-                      
-                      <div className={`rounded-2xl px-3 py-2 ${
-                        isCurrentUser 
-                          ? 'bg-[var(--primary)] text-white rounded-tr-none ml-auto' 
-                          : 'bg-[var(--card)] text-[var(--text-primary)] rounded-tl-none'
-                      } max-w-full shadow-sm relative`} style={{ fontSize: `${messageFontSize}px` }}>
-                        <div className="break-words whitespace-pre-wrap">
-                          {renderMessageContent(message.content)}
-                        </div>
-                        <div className="text-right">
-                          <span className={`text-[10px] ${isCurrentUser ? 'text-white/70' : 'text-[var(--text-secondary)]'}`}>
-                            {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {message.reactions && message.reactions.length > 0 && (
-                        <div className={`flex flex-wrap gap-1 mt-1 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-                          {message.reactions.map((reaction) => {
-                            const hasReacted = reaction.users.includes(currentUserId);
-                            const emojiHtml = emojiCodeToHtml(reaction.emoji, emojiCategories);
-                            
-                            return (
-                              <button
-                                key={reaction.emoji}
-                                onClick={() => handleAddReaction(message.id, reaction.emoji)}
-                                className="bg-[var(--card)] rounded-full h-5 min-w-5 flex items-center justify-center px-1"
-                              >
-                                <span dangerouslySetInnerHTML={{ __html: emojiHtml }} className="w-3 h-3" />
-                                <span className="text-[10px] ml-1">{reaction.count}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {isCurrentUser && (!isSameUser || true) && (
-                      <Image
-                        src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
-                        alt={message.author.name}
-                        width={28}
-                        height={28}
-                        className="rounded-full ml-2 self-end mb-1 flex-shrink-0"
-                      />
-                    )}
-                    
-                    <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity right-0 bottom-0 flex items-center gap-0.5 bg-[var(--card)]/80 backdrop-blur-sm rounded-full p-0.5 shadow-sm translate-y-1/2">
-                      <button 
-                        onClick={() => handleReply(message)}
-                        className="p-1 rounded-full hover:bg-[var(--card)] text-[var(--text-secondary)]" 
-                        title="Yanıtla"
-                      >
-                        <Reply size={10} />
-                      </button>
-                      <button 
-                        onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
-                        className="p-1 rounded-full hover:bg-[var(--card)] text-[var(--text-secondary)]" 
-                        title="Reaksiyon Ekle"
-                      >
-                        <Smile size={10} />
-                      </button>
-                    </div>
-                    
-                    {showReactionPicker === message.id && (
-                      <div className={`absolute ${isCurrentUser ? 'right-0' : 'left-0'} mt-1 z-10`}>
-                        <ReactionPicker 
-                          messageId={message.id} 
-                          onClose={() => setShowReactionPicker(null)} 
-                        />
-                      </div>
-                    )}
-                  </motion.div>
-                );
-              }
-
-              // Discord stili (varsayılan)
+              // İlgili stil bileşenini kapsayarak sürükleme/çift tıklama ekleyelim
               return (
-                <motion.div
+                <div
                   key={message.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`group flex items-start gap-3 px-6 py-2 hover:bg-[var(--card)]/30 rounded-md ${
-                    isSameUser ? 'mt-0.5 pt-0.5' : 'mt-2 pt-2'
-                  }`}
-                  onContextMenu={(e) => handleContextMenu(e, message)}
+                  onDoubleClick={() => handleMessageDoubleClick(message)}
+                  draggable={true}
+                  onDragStart={(e) => handleDragStart(e, message)}
+                  onDragEnd={handleDragEnd}
+                  className="cursor-pointer"
                 >
-                  {/* Her zaman aynı hizada kalması için PP boşluğu */}
-                  <div className="flex-shrink-0 w-10 h-10">
-                    {!isSameUser ? (
-                      <Image
-                        src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
-                        alt={message.author.name}
-                        width={40}
-                        height={40}
-                        className="rounded-full"
-                      />
-                    ) : (
-                      <div className="w-10 h-10"></div>
-                    )}
-                  </div>
-                  
-                  <div className="flex-1">
-                    {!isSameUser && (
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-[var(--text-primary)]">{message.author.name}</span>
-                        <span className="text-xs text-[var(--text-secondary)]">
-                          {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                      </div>
-                    )}
-                    
-                    {message.replyTo && (
-                      <div className="mb-2 bg-[var(--card)]/30 p-2 rounded-md border-l-2 border-[var(--primary)] max-w-[85%]">
-                        <div className="flex items-center gap-1 mb-0.5">
-                          <Reply size={12} className="text-[var(--text-secondary)]" />
-                          <span className="text-xs font-medium text-[var(--text-secondary)]">
-                            @{message.replyTo.author.name}
-                          </span>
-                        </div>
-                        <p className="text-sm text-[var(--text-secondary)] line-clamp-1">
-                          {message.replyTo.content}
-                        </p>
-                      </div>
-                    )}
-                    
-                    <div className={`px-3 py-1.5 rounded-md ${
-                      isCurrentUser 
-                        ? 'text-[var(--text-primary)]' 
-                        : 'bg-[var(--card)]/60 text-[var(--text-primary)]'
-                    } break-words whitespace-pre-wrap max-w-[90%]`} style={{ fontSize: `${messageFontSize}px` }}>
-                      {renderMessageContent(message.content)}
-                    </div>
-                    
-                    {message.reactions && message.reactions.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {message.reactions.map((reaction) => {
-                          const hasReacted = reaction.users.includes(currentUserId);
-                          const emojiHtml = emojiCodeToHtml(reaction.emoji, emojiCategories);
-                          
-                          return (
-                            <button
-                              key={reaction.emoji}
-                              onClick={() => handleAddReaction(message.id, reaction.emoji)}
-                              className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs ${
-                                hasReacted 
-                                  ? 'bg-[var(--primary)]/20 text-[var(--primary)]' 
-                                  : 'bg-[var(--card)] text-[var(--text-secondary)]'
-                              }`}
-                            >
-                              <span dangerouslySetInnerHTML={{ __html: emojiHtml }} className="w-4 h-4" />
-                              <span className="font-medium">{reaction.count}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 flex-shrink-0">
-                    <button 
-                      onClick={() => handleReply(message)}
-                      className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
-                      title="Yanıtla"
-                    >
-                      <Reply size={14} />
-                    </button>
-                    <button 
-                      onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
-                      className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
-                      title="Reaksiyon Ekle"
-                    >
-                      <Smile size={14} />
-                    </button>
-                    <button 
-                      onClick={(e) => handleMoreClick(e, message.id)}
-                      className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
-                      title="Daha Fazla"
-                    >
-                      <MoreVertical size={14} />
-                    </button>
-                  </div>
-                  
-                  {showReactionPicker === message.id && (
-                    <div className="absolute left-1/2 transform -translate-x-1/2 translate-y-16 z-10">
-                      <ReactionPicker 
-                        messageId={message.id} 
-                        onClose={() => setShowReactionPicker(null)} 
-                      />
-                    </div>
+                  {/* WhatsApp stili */}
+                  {messageViewMode === 'whatsapp' && (
+                    <WhatsAppStyle {...messageProps} />
                   )}
                   
-                  <MoreMenu messageId={message.id} />
-                </motion.div>
+                  {/* Modern stili */}
+                  {messageViewMode === 'modern' && (
+                    <ModernStyle {...messageProps} />
+                  )}
+
+                  {/* Baloncuklar stili */}
+                  {messageViewMode === 'bubbles' && (
+                    <BubblesStyle {...messageProps} />
+                  )}
+
+                  {/* Discord stili (varsayılan) */}
+                  {messageViewMode === 'discord' && (
+                    <DiscordStyle {...messageProps} />
+                  )}
+                </div>
               );
             })
           )}

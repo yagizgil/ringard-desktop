@@ -25,6 +25,17 @@ interface Message {
   read_status: any[];
 }
 
+interface Participant {
+  id: string;
+  username: string;
+  avatar_id: string | null;
+  custom_status: string | null;
+  status: number;
+  display_name: string;
+  is_online: boolean | null;
+  last_online_at: string | null;
+}
+
 interface Conversation {
   id: string;
   conversation_type: string;
@@ -36,7 +47,7 @@ interface Conversation {
   last_message_content: string;
   last_message_sender_id: string;
   is_active: boolean;
-  participants: string[];
+  participants: Participant[];
   unread_count: number | null;
 }
 
@@ -73,6 +84,17 @@ const currentUser: UserProfile = {
   voiceStatus: 'connected'
 };
 
+const getConversationDisplayName = (conversation: Conversation, currentUserId: string | null) => {
+  if (!currentUserId) return conversation.name;
+  
+  if (conversation.conversation_type === 'private') {
+    const otherParticipant = conversation.participants.find(p => p.id !== currentUserId);
+    return otherParticipant ? otherParticipant.username : conversation.name;
+  }
+  
+  return conversation.name;
+};
+
 export default function ChannelSidebar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -94,7 +116,8 @@ export default function ChannelSidebar() {
     const fetchConversations = async () => {
       try {
         const token = getCookie('access_token');
-        if (!token) return;
+        const userId = getCookie('user_id');
+        if (!token || !userId) return;
 
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/p2p/conversations`, {
           headers: {
@@ -153,10 +176,30 @@ export default function ChannelSidebar() {
   };
 
   const tabs = [
-    { id: 'social', label: 'Sosyal', icon: <Users className="w-5 h-5" /> },
-    { id: 'news', label: 'Haberler', icon: <Newspaper className="w-5 h-5" /> },
-    { id: 'updates', label: 'Güncellemeler', icon: <Bell className="w-5 h-5" /> },
-    { id: 'market', label: 'Market', icon: <ShoppingBag className="w-5 h-5" /> }
+    { 
+      id: 'social' as TabType, 
+      label: 'Sosyal', 
+      icon: <Users className="w-5 h-5" />,
+      count: null
+    },
+    { 
+      id: 'news' as TabType, 
+      label: 'Haberler', 
+      icon: <Newspaper className="w-5 h-5" />,
+      count: 5
+    },
+    { 
+      id: 'updates' as TabType, 
+      label: 'Güncellemeler', 
+      icon: <Bell className="w-5 h-5" />,
+      count: 2
+    },
+    { 
+      id: 'market' as TabType, 
+      label: 'Market', 
+      icon: <ShoppingBag className="w-5 h-5" />,
+      count: null
+    }
   ];
 
   const toggleMic = () => {
@@ -177,12 +220,12 @@ export default function ChannelSidebar() {
     if (conversation.conversation_type === 'private') {
       // Private mesaj için karşı tarafın ID'sini bul
       const otherParticipantId = conversation.participants.find(
-        participantId => participantId !== currentUserId
+        participantId => participantId.id !== currentUserId
       );
       if (otherParticipantId) {
         // Mesajları çek
         await fetchMessages(conversation.id);
-        router.push(`/direct/${otherParticipantId}`);
+        router.push(`/direct/${otherParticipantId.id}`);
       }
     } else if (conversation.conversation_type === 'group') {
       // Grup sohbeti için grup ID'sini kullan
@@ -215,46 +258,51 @@ export default function ChannelSidebar() {
       </div>
 
       {/* Tab Butonları */}
-      {pathname === '/' && (
-        <div className="px-2 space-y-1 mt-2">
+      {pathname === '/' ? (
+        <div className="grid grid-cols-4 gap-1 p-2 bg-white/5 rounded-lg mx-2 mb-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => handleTabChange(tab.id as TabType)}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
+              onClick={() => handleTabChange(tab.id)}
+              className={`relative flex flex-col items-center gap-1 p-3 rounded-lg transition-all ${
                 activeTab === tab.id
-                  ? 'bg-[var(--primary)] text-white'
-                  : 'hover:bg-white/5 text-[var(--text-secondary)]'
+                  ? 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg'
+                  : 'hover:bg-white/5 text-[var(--text-secondary)] hover:text-white'
               }`}
             >
               {tab.icon}
-              <span className="font-medium">{tab.label}</span>
-              {tab.id === 'updates' && (
-                <span className="ml-auto bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                  2
+              <span className="text-xs font-medium">{tab.label}</span>
+              {tab.count && (
+                <span className={`absolute top-1 right-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full min-w-[18px] flex items-center justify-center ${
+                  activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-orange-500 text-white'
+                }`}>
+                  {tab.count}
                 </span>
               )}
             </button>
           ))}
         </div>
-      )}
-      {pathname !== '/' && (
+      ) : (
         <div className="px-2 space-y-1 mt-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => router.push('/')}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
                 activeTab === tab.id
-                  ? 'bg-[var(--primary)] text-white'
-                  : 'hover:bg-white/5 text-[var(--text-secondary)]'
+                  ? 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg'
+                  : 'hover:bg-white/5 text-[var(--text-secondary)] hover:text-white'
               }`}
             >
-              {tab.icon}
-              <span className="font-medium">{tab.label}</span>
-              {tab.id === 'updates' && (
-                <span className="ml-auto bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                  2
+              <div className="w-5 h-5 flex items-center justify-center">
+                {tab.icon}
+              </div>
+              <span className="font-medium text-sm">{tab.label}</span>
+              {tab.count && (
+                <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full min-w-[18px] flex items-center justify-center ${
+                  activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-orange-500 text-white'
+                }`}>
+                  {tab.count}
                 </span>
               )}
             </button>
@@ -263,56 +311,73 @@ export default function ChannelSidebar() {
       )}
 
       {/* DM Listesi */}
-      <div className="flex-1 overflow-y-auto py-2">
-        <div className="px-4 mb-2">
-          <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-            Direkt Mesajlar
-          </h3>
+      <div className="flex-1 overflow-y-auto py-2 px-2 space-y-4">
+        <div className="px-2">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+              Konuşmalar
+            </h3>
+          </div>
         </div>
+
         {isLoading ? (
-          <div className="px-4 py-2">
-            <div className="animate-pulse flex space-x-4">
-              <div className="flex-1 space-y-4 py-1">
-                <div className="h-4 bg-[var(--card)] rounded w-3/4"></div>
-                <div className="space-y-2">
-                  <div className="h-4 bg-[var(--card)] rounded"></div>
-                  <div className="h-4 bg-[var(--card)] rounded w-5/6"></div>
+          <div className="px-2 space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="animate-pulse flex items-center gap-3 p-2 rounded-lg bg-white/5">
+                <div className="w-10 h-10 rounded-full bg-white/10"></div>
+                <div className="flex-1">
+                  <div className="h-3 bg-white/10 rounded w-24 mb-2"></div>
+                  <div className="h-2 bg-white/10 rounded w-32"></div>
                 </div>
               </div>
-            </div>
+            ))}
           </div>
         ) : (
-          conversations.map((conversation) => (
-            <button
-              key={conversation.id}
-              onClick={() => handleConversationClick(conversation)}
-              className="w-full flex items-center gap-3 px-4 py-2 hover:bg-white/5 transition-colors group"
-            >
-              <div className="relative">
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-[var(--card)] flex items-center justify-center">
-                  <span className="text-lg font-medium text-[var(--text-primary)]">
-                    {conversation.name.charAt(0).toUpperCase()}
-                  </span>
+          <div className="space-y-0.5">
+            {conversations.map((conversation) => (
+              <button
+                key={conversation.id}
+                onClick={() => handleConversationClick(conversation)}
+                className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/5 transition-all group relative"
+              >
+                <div className="relative flex-shrink-0">
+                  <div className="w-11 h-11 rounded-xl overflow-hidden bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg ring-2 ring-white/10">
+                    <span className="text-lg font-medium text-white">
+                      {getConversationDisplayName(conversation, currentUserId).charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-[2.5px] border-[var(--surface)]
+                    ${conversation.is_active ? 'bg-green-500' : 'bg-gray-500'}
+                    shadow-sm transition-colors`} 
+                  />
                 </div>
-                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[var(--surface)] ${
-                  conversation.is_active ? 'bg-green-500' : 'bg-gray-500'
-                }`} />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium text-[var(--text-primary)]">{conversation.name}</p>
-                {conversation.last_message_content && (
-                  <p className="text-xs text-[var(--text-secondary)] truncate max-w-[120px]">
-                    {decryptLastMessage(conversation.last_message_content, currentUserId || '')}
-                  </p>
-                )}
-              </div>
-              {conversation.unread_count && conversation.unread_count > 0 && (
-                <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                  {conversation.unread_count}
-                </span>
-              )}
-            </button>
-          ))
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-[var(--text-primary)] truncate group-hover:text-white transition-colors">
+                      {getConversationDisplayName(conversation, currentUserId)}
+                    </p>
+                    {conversation.last_message_at && (
+                      <span className="text-[10px] text-[var(--text-secondary)] group-hover:text-white/50 transition-colors flex-shrink-0">
+                        {new Date(conversation.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                  {conversation.last_message_content && (
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-[var(--text-secondary)] truncate group-hover:text-white/70 transition-colors flex-1">
+                        {decryptLastMessage(conversation.last_message_content, currentUserId || '')}
+                      </p>
+                      {conversation.unread_count && conversation.unread_count > 0 && (
+                        <span className="flex-shrink-0 bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-md">
+                          {conversation.unread_count}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
