@@ -412,72 +412,94 @@ export default function DirectMessagePage() {
             }
           }
 
-          // Mesajı oluştur
-          const newMessage: Message = {
-            id: Date.now().toString(),
-            content: messageContent,
-            author: {
-              id: lastMessage.user_id,
-              name: lastMessage.user_id === currentUserId ? currentUsername : 'Diğer Kullanıcı',
-              avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
-              status: 'online'
-            },
-            timestamp: lastMessage.timestamp || new Date().toISOString(),
-            reactions: [],
-            attachments: [],
-            embeds: []
-          };
-
-          // Mesajları güncelle
-          setMessages(prev => [...prev, newMessage]);
+          // Mesaj ID'si oluştur (sunucudan gelen ID veya tarih tabanlı bir ID)
+          const messageId = lastMessage.id || `ws-${Date.now()}`;
           
-          // Sadece alıcı için ses çal ve bildirim göster
-          if (lastMessage.recipient_id === currentUserId) {
-            playNotificationSound();
-            showNotification(
-              lastMessage.username || 'Yeni Mesaj',
-              messageContent
-            );
+          // Bu ID'ye sahip bir mesaj zaten varsa, tekrar ekleme
+          const isMessageExists = messages.some(m => m.id === messageId);
+          
+          if (!isMessageExists) {
+            // Mesajı oluştur
+            const newMessage: Message = {
+              id: messageId,
+              content: messageContent,
+              author: {
+                id: lastMessage.user_id,
+                name: lastMessage.user_id === currentUserId ? currentUsername : 'Diğer Kullanıcı',
+                avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
+                status: 'online'
+              },
+              timestamp: lastMessage.timestamp || new Date().toISOString(),
+              reactions: [],
+              attachments: [],
+              embeds: []
+            };
+
+            // Mesajları güncelle
+            setMessages(prev => [...prev, newMessage]);
+            
+            // Sadece alıcı için ses çal ve bildirim göster
+            if (lastMessage.recipient_id === currentUserId) {
+              playNotificationSound();
+              showNotification(
+                lastMessage.username || 'Yeni Mesaj',
+                messageContent
+              );
+            }
+          } else {
+            console.log('Bu mesaj zaten mevcut, tekrar eklenmedi:', messageId);
           }
         } catch (error) {
           console.error('WebSocket mesajı işlenirken hata:', error);
         }
       }
     }
-  }, [wsMessages, currentUserId, routeUserId, currentUsername, playNotificationSound, showNotification]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsMessages]);
 
   // Mesaj gönderme fonksiyonu
   const sendMessage = async (content: string) => {
     try {
+      // Mesaj ID'si oluştur
+      const messageId = `local-${Date.now()}`;
+      
       // Şifrelenmiş mesajı hazırla
       const encryptedContent = MessageSecurity.encryptMessage(content, currentUserId, routeUserId);
       const messageData = {
         recipientId: routeUserId,
         content: encryptedContent,
         replyTo: null,
-        mentions: []
+        mentions: [],
+        messageId: messageId
       };
 
       // WebSocket üzerinden şifreli mesajı gönder
       sendDirectMessage(routeUserId, `dm:${JSON.stringify(messageData)}`);
 
-      // UI'a ham mesajı ekle
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        content: content, // Ham mesajı göster
-        author: {
-          id: currentUserId,
-          name: currentUsername,
-          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
-          status: 'online'
-        },
-        timestamp: new Date().toISOString(),
-        reactions: [],
-        attachments: [],
-        embeds: []
-      };
+      // Bu ID'ye sahip bir mesaj zaten varsa, tekrar ekleme
+      const isMessageExists = messages.some(m => m.id === messageId);
+      
+      if (!isMessageExists) {
+        // UI'a ham mesajı ekle
+        const newMessage: Message = {
+          id: messageId,
+          content: content, // Ham mesajı göster
+          author: {
+            id: currentUserId,
+            name: currentUsername,
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
+            status: 'online'
+          },
+          timestamp: new Date().toISOString(),
+          reactions: [],
+          attachments: [],
+          embeds: []
+        };
 
-      setMessages(prev => [...prev, newMessage]);
+        setMessages(prev => [...prev, newMessage]);
+      } else {
+        console.log('Bu mesaj zaten gönderilmiş:', messageId);
+      }
     } catch (error) {
       console.error('Mesaj gönderirken hata:', error);
       // toast.error('Mesaj gönderilemedi');
@@ -1063,6 +1085,9 @@ export default function DirectMessagePage() {
           });
           const messagesData = await messagesResponse.json();
           
+          // Sadece ilk yüklemede, mevcut mesajları tamamen temizle ve yeni mesajları ekle
+          // Bu sayede çift mesaj sorunu olmaz
+          
           // API mesajlarını uygulama formatına dönüştür
           const formattedMessages = messagesData.messages.map((msg: ApiMessage) => {
             // Mesaj içeriğini parse et ve decrypt et
@@ -1123,8 +1148,8 @@ export default function DirectMessagePage() {
           const sortByTimestamp = (a: Message, b: Message) => {
             return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
           };
+          
           formattedMessages.sort(sortByTimestamp);
-
           setMessages(formattedMessages);
         }
         
@@ -1135,6 +1160,7 @@ export default function DirectMessagePage() {
       }
     };
 
+    // Sadece gerekli bağımlılıkları kullan, messages eklemiyoruz
     loadMessages();
   }, [routeUserId, currentUserId, currentUsername]);
 
