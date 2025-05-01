@@ -65,10 +65,12 @@ export class MessageSecurity {
   }
 
   // Çözme ana fonksiyonu
-  public static decryptMessage(encryptedMessage: string, userId: string): string | null {
+  public static decryptMessage(encryptedMessage: string | object, userId: string): string | null {
     try {
-      // JSON'u parse et
-      const messageData = JSON.parse(encryptedMessage);
+      // JSON'u parse et veya encryptedMessage zaten bir obje ise doğrudan kullan
+      const messageData = typeof encryptedMessage === 'string' 
+        ? JSON.parse(encryptedMessage) 
+        : encryptedMessage;
       
       // Kullanıcı ID'sine göre doğru şifreli mesajı seç
       const encryptedContent = userId === messageData.senderId 

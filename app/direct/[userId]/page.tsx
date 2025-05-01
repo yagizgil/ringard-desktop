@@ -383,16 +383,23 @@ export default function DirectMessagePage() {
             
             // Şifrelenmiş içeriği parse et
             if (dmData.content && typeof dmData.content === 'string') {
-              const encryptedContent = JSON.parse(dmData.content);
+              // JSON parse işlemini güvenli bir şekilde yap
+              let wsEncryptedContent;
+              try {
+                wsEncryptedContent = JSON.parse(dmData.content);
+              } catch (parseError) {
+                console.log('JSON parse edilemedi, doğrudan kullanılıyor:', dmData.content);
+                wsEncryptedContent = dmData.content;
+              }
               
               // Gönderen veya alıcı için doğru userId'yi seç
               const isCurrentUserSender = lastMessage.user_id === currentUserId;
               const targetUserId = isCurrentUserSender ? currentUserId : routeUserId;
               
               // Şifreli mesajı çöz
-              const decryptedContent = MessageSecurity.decryptMessage(encryptedContent, targetUserId);
+              const decryptedContent = MessageSecurity.decryptMessage(wsEncryptedContent, targetUserId);
               messageContent = decryptedContent || 'Mesaj çözülemedi';
-                  
+                
               if (!decryptedContent) {
                 console.error('Mesaj çözülemedi:', {
                   content: dmData.content,
@@ -1064,14 +1071,22 @@ export default function DirectMessagePage() {
               try {
                 const dmData = JSON.parse(messageContent.substring(3));
                 if (dmData.content && typeof dmData.content === 'string') {
-                  const encryptedContent = JSON.parse(dmData.content);
+                  // JSON parse işlemini güvenli bir şekilde yap
+                  let msgEncryptedContent;
+                  try {
+                    msgEncryptedContent = JSON.parse(dmData.content);
+                  } catch (parseError) {
+                    console.log('JSON parse edilemedi, doğrudan kullanılıyor:', dmData.content);
+                    msgEncryptedContent = dmData.content;
+                  }
                   
                   // Gönderen veya alıcı şifrelemesini seç
                   const isCurrentUserSender = msg.sender_id === currentUserId;
                   const targetUserId = isCurrentUserSender ? currentUserId : routeUserId;
                   
                   // Şifreli mesajı çöz
-                  const decryptedContent = MessageSecurity.decryptMessage(encryptedContent, targetUserId);
+                  const decryptedContent = MessageSecurity.decryptMessage(msgEncryptedContent, targetUserId);
+                  console.log(decryptedContent);
                   messageContent = decryptedContent || 'Mesaj çözülemedi';
                   
                   if (!decryptedContent) {
