@@ -111,6 +111,9 @@ export default function DirectMessagePage() {
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [messageViewMode, setMessageViewMode] = useState<'discord' | 'whatsapp' | 'bubbles' | 'modern'>('discord');
+  const [messageFontSize, setMessageFontSize] = useState<number>(16);
+  const [showFontSizeSlider, setShowFontSizeSlider] = useState<boolean>(false);
   
   // WebSocket bağlantısı
   const { connect, disconnect, sendDirectMessage, messages: wsMessages, isConnected } = useWebSocket();
@@ -157,96 +160,53 @@ export default function DirectMessagePage() {
   };
 
   // Mesaj formatlama fonksiyonu
-  const formatMessage = useCallback((content: string) => {
-    // Emojileri işle
-    content = processMessageEmojis(content, emojiCategories);
-    
+  const formatAndProcessText = (text: string) => {
     // Kalın metin
-    content = content.replace(/\*\*(.*?)\*\*/g, '<strong className="font-bold">$1</strong>');
-    
+    const boldRegex = /\*\*(.*?)\*\*/g;
+    // İtalik metin
+    const italicRegex = /_(.*?)_/g;
     // Alıntı
-    content = content.replace(/^>(.*?)$/gm, '<blockquote className="border-l-4 border-[var(--primary)] pl-4 py-2 my-2 bg-[var(--card)] rounded-r-lg shadow-sm">$1</blockquote>');
-    
+    const quoteRegex = /^>(.*?)$/gm;
     // Kod bloğu
-    content = content.replace(/```([\s\S]*?)```/g, '<pre className="bg-[var(--card)] p-4 rounded-lg my-2 overflow-x-auto border border-[var(--border)]"><code className="text-sm font-mono text-[var(--text-primary)]">$1</code></pre>');
+    const codeBlockRegex = /```([\s\S]*?)```/g;
     
-    // İtalik
-    content = content.replace(/\_(.*?)\_/g, '<em className="italic">$1</em>');
+    // Yeni satırları koruyarak metni formatlayıp döndür
+    let formattedContent = text;
     
-    return content;
-  }, [emojiCategories]);
-  
-  // Emoji formatını kontrol et ve emoji resmini göster
-  const renderEmoji = (text: string) => {
-    // Emoji formatı: <:emojiname:emojiid>
-    const emojiRegex = /<:(\w+):(\w+)>/g;
+    // HTML entities dönüşümü
+    formattedContent = formattedContent
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
     
-    if (!emojiRegex.test(text)) {
-      return text;
-    }
-
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    // Regex'i sıfırla
-    emojiRegex.lastIndex = 0;
-
-    while ((match = emojiRegex.exec(text)) !== null) {
-      // Emoji öncesi metni ekle
-      if (match.index > lastIndex) {
-        parts.push(text.substring(lastIndex, match.index));
-      }
-
-      // Emoji elementini ekle
-      const emojiName = match[1];
-      parts.push(
-        <img
-          key={match.index}
-          src={`/emojis/${emojiName}.png`}
-          alt={`:${emojiName}:`}
-          className="inline-block w-6 h-6 align-middle"
-          loading="lazy"
-        />
-      );
-
-      lastIndex = emojiRegex.lastIndex;
-    }
-
-    // Kalan metni ekle
-    if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
-    }
-
-    return <>{parts}</>;
-  };
-
-  // Mesaj içeriğini render et
-  const renderMessageContent = (content: string) => {
-    try {
-      // JSON olup olmadığını kontrol et
-      const parsed = JSON.parse(content);
-      
-      // GIF mesajı ise
-      if (parsed.type === 'gif') {
-        return (
-          <div className="relative w-64 h-48">
-            <img 
-              src={parsed.content} 
-              alt={parsed.alt || 'GIF'} 
-              className="rounded-lg object-cover w-full h-full"
-              loading="lazy"
-            />
-          </div>
-        );
-      }
-      
-      // Diğer JSON mesajları için içeriği göster
-      return processEmojis(content);
-    } catch (e) {
-      // JSON parse edilemezse normal mesaj olarak göster
-      return processEmojis(content);
-    }
+    // Kod bloklarını işle
+    formattedContent = formattedContent.replace(codeBlockRegex, (match, codeContent) => {
+      return `<pre class="bg-[var(--card)] p-3 rounded-lg my-2 overflow-x-auto border border-[var(--border)] text-sm font-mono"><code>${codeContent}</code></pre>`;
+    });
+    
+    // Alıntıları işle
+    formattedContent = formattedContent.replace(quoteRegex, (match, quoteContent) => {
+      return `<blockquote class="border-l-4 border-[var(--primary)] pl-3 py-1 my-2 bg-[var(--card)]/50 rounded-r-lg">${quoteContent}</blockquote>`;
+    });
+    
+    // Kalın metni işle
+    formattedContent = formattedContent.replace(boldRegex, '<strong class="font-bold">$1</strong>');
+    
+    // İtalik metni işle
+    formattedContent = formattedContent.replace(italicRegex, '<em class="italic">$1</em>');
+    
+    // Yeni satırları <br> etiketine dönüştür
+    formattedContent = formattedContent.replace(/\n/g, '<br>');
+    
+    // Emojileri işle
+    formattedContent = processMessageEmojis(formattedContent, emojiCategories);
+    
+    return (
+      <div 
+        className="break-words whitespace-pre-wrap overflow-hidden"
+        dangerouslySetInnerHTML={{ __html: formattedContent }}
+      />
+    );
   };
 
   // Kullanıcı profilini al
@@ -377,9 +337,15 @@ export default function DirectMessagePage() {
         try {
           // Mesaj içeriğini parse et
           let messageContent = lastMessage.content;
+          let replyData = null;
           
           if (typeof messageContent === 'string' && messageContent.startsWith('dm:')) {
             const dmData = JSON.parse(messageContent.substring(3));
+            
+            // Yanıt verisi varsa al
+            if (dmData.replyTo) {
+              replyData = dmData.replyTo;
+            }
             
             // Şifrelenmiş içeriği parse et
             if (dmData.content && typeof dmData.content === 'string') {
@@ -398,9 +364,18 @@ export default function DirectMessagePage() {
               
               // Şifreli mesajı çöz
               const decryptedContent = MessageSecurity.decryptMessage(wsEncryptedContent, targetUserId);
-              messageContent = decryptedContent || 'Mesaj çözülemedi';
+              
+              // Özel GIF mesajı kontrolü
+              if (dmData.type === 'gif') {
+                messageContent = `dm:${JSON.stringify({
+                  type: 'gif',
+                  content: dmData.content
+                })}`;
+              } else {
+                messageContent = decryptedContent || 'Mesaj çözülemedi';
+              }
                 
-              if (!decryptedContent) {
+              if (!decryptedContent && dmData.type !== 'gif') {
                 console.error('Mesaj çözülemedi:', {
                   content: dmData.content,
                   targetUserId,
@@ -419,6 +394,12 @@ export default function DirectMessagePage() {
           const isMessageExists = messages.some(m => m.id === messageId);
           
           if (!isMessageExists) {
+            // Yanıt verisi için ilgili mesajı bul
+            let replyToMessage: Message | undefined;
+            if (replyData) {
+              replyToMessage = messages.find(m => m.id === replyData.id);
+            }
+            
             // Mesajı oluştur
             const newMessage: Message = {
               id: messageId,
@@ -432,7 +413,8 @@ export default function DirectMessagePage() {
               timestamp: lastMessage.timestamp || new Date().toISOString(),
               reactions: [],
               attachments: [],
-              embeds: []
+              embeds: [],
+              replyTo: replyToMessage
             };
 
             // Mesajları güncelle
@@ -443,7 +425,7 @@ export default function DirectMessagePage() {
               playNotificationSound();
               showNotification(
                 lastMessage.username || 'Yeni Mesaj',
-                messageContent
+                typeof messageContent === 'string' ? messageContent : 'Yeni mesaj'
               );
             }
           } else {
@@ -463,12 +445,22 @@ export default function DirectMessagePage() {
       // Mesaj ID'si oluştur
       const messageId = `local-${Date.now()}`;
       
+      // Yanıt verisi
+      const replyData = replyingTo ? {
+        id: replyingTo.id,
+        content: replyingTo.content,
+        author: {
+          id: replyingTo.author.id,
+          name: replyingTo.author.name
+        }
+      } : null;
+      
       // Şifrelenmiş mesajı hazırla
       const encryptedContent = MessageSecurity.encryptMessage(content, currentUserId, routeUserId);
       const messageData = {
         recipientId: routeUserId,
         content: encryptedContent,
-        replyTo: null,
+        replyTo: replyData,
         mentions: [],
         messageId: messageId
       };
@@ -493,7 +485,8 @@ export default function DirectMessagePage() {
           timestamp: new Date().toISOString(),
           reactions: [],
           attachments: [],
-          embeds: []
+          embeds: [],
+          replyTo: replyingTo || undefined
         };
 
         setMessages(prev => [...prev, newMessage]);
@@ -780,16 +773,63 @@ export default function DirectMessagePage() {
       alt: gif.title
     };
 
+    // Gif mesajını JSON olarak dönüştür
+    const gifContent = JSON.stringify(gifMessage);
+    
     // Şifrelenmiş mesajı gönder
     if (isConnected) {
-      sendMessage(`dm:${JSON.stringify({
+      // Mesaj ID'si oluştur
+      const messageId = `gif-${Date.now()}`;
+      
+      // Şifrelenmiş içeriği hazırla
+      const encryptedContent = MessageSecurity.encryptMessage(gifContent, currentUserId, routeUserId);
+      
+      // Mesaj verisini hazırla
+      const messageData = {
+        recipientId: routeUserId,
+        content: encryptedContent,
         type: 'gif',
-        content: MessageSecurity.encryptMessage(
-          JSON.stringify(gifMessage),
-          currentUserId,
-          routeUserId
-        )
-      })}`);
+        replyTo: replyingTo ? {
+          id: replyingTo.id,
+          content: replyingTo.content,
+          author: {
+            id: replyingTo.author.id,
+            name: replyingTo.author.name
+          }
+        } : null,
+        mentions: [],
+        messageId: messageId
+      };
+
+      // WebSocket üzerinden şifreli mesajı gönder
+      sendDirectMessage(routeUserId, `dm:${JSON.stringify(messageData)}`);
+      
+      // UI'a GIF mesajını ekle
+      const newMessage: Message = {
+        id: messageId,
+        content: JSON.stringify(gifMessage),
+        author: {
+          id: currentUserId,
+          name: currentUsername,
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80',
+          status: 'online'
+        },
+        timestamp: new Date().toISOString(),
+        reactions: [],
+        attachments: [],
+        embeds: [],
+        replyTo: replyingTo || undefined,
+        type: 'gif',
+        gifUrl: gif.url,
+        gifTitle: gif.title
+      };
+
+      setMessages(prev => [...prev, newMessage]);
+      
+      // Yanıtlama modunu kapat
+      if (replyingTo) {
+        setReplyingTo(null);
+      }
     }
 
     setShowGifPicker(false);
@@ -848,6 +888,36 @@ export default function DirectMessagePage() {
     setSelectedMessage(null);
     setReportReason('');
     setReportDetails('');
+  };
+
+  // Mesaj içeriğini render etme fonksiyonu
+  const renderMessageContent = (content: string) => {
+    // GIF mesajı kontrolü
+    if (content.startsWith('{"type":"gif"') || content.startsWith('dm:{"type":"gif"')) {
+      try {
+        // dm: ile başlıyorsa prefix'i kaldır
+        const jsonContent = content.startsWith('dm:') ? content.substring(3) : content;
+        const gifData = JSON.parse(jsonContent);
+        
+        if (gifData.type === 'gif' && gifData.content) {
+          return (
+            <div className="my-2 max-w-full">
+              <img 
+                src={gifData.content} 
+                alt={gifData.alt || 'GIF'} 
+                className="rounded-lg max-w-full h-auto"
+                loading="lazy"
+              />
+            </div>
+          );
+        }
+      } catch (error) {
+        console.error('GIF mesajı parse edilemedi:', error);
+      }
+    }
+    
+    // Normal metin mesajı
+    return formatAndProcessText(content);
   };
 
   // Report Modal Component
@@ -1179,6 +1249,96 @@ export default function DirectMessagePage() {
             </div>
           </div>
           <div className="flex items-center gap-0.5 sm:gap-2">
+            <div className="relative">
+              <button 
+                className="relative inline-flex items-center justify-between px-3 py-1.5 rounded-md bg-[var(--card)] border border-[var(--border)] text-[var(--text-primary)] cursor-pointer transition-all hover:bg-[var(--card)]/80 text-sm font-medium outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                onClick={() => {
+                  const viewModeElement = document.getElementById('viewMode');
+                  if (viewModeElement) {
+                    viewModeElement.focus();
+                  }
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  {messageViewMode === 'discord' && (
+                    <>
+                      <div className="w-4 h-4 rounded-full bg-[#5865F2]"></div>
+                      <span>Discord</span>
+                    </>
+                  )}
+                  {messageViewMode === 'whatsapp' && (
+                    <>
+                      <div className="w-4 h-4 rounded-full bg-[#25D366]"></div>
+                      <span>WhatsApp</span>
+                    </>
+                  )}
+                  {messageViewMode === 'bubbles' && (
+                    <>
+                      <div className="w-4 h-4 rounded-full bg-[#0088cc]"></div>
+                      <span>Baloncuklar</span>
+                    </>
+                  )}
+                  {messageViewMode === 'modern' && (
+                    <>
+                      <div className="w-4 h-4 rounded-full bg-[var(--primary)]"></div>
+                      <span>Modern</span>
+                    </>
+                  )}
+                </div>
+                <svg className="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <select
+                id="viewMode"
+                value={messageViewMode}
+                onChange={(e) => setMessageViewMode(e.target.value as 'discord' | 'whatsapp' | 'bubbles' | 'modern')}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              >
+                <option value="discord">Discord Stili</option>
+                <option value="whatsapp">WhatsApp Stili</option>
+                <option value="bubbles">Baloncuklar</option>
+                <option value="modern">Modern</option>
+              </select>
+            </div>
+            
+            <div className="relative">
+              <button 
+                onClick={() => setShowFontSizeSlider(!showFontSizeSlider)}
+                className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
+                title="Metin Boyutu"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="4 7 4 4 20 4 20 7"></polyline>
+                  <line x1="9" y1="20" x2="15" y2="20"></line>
+                  <line x1="12" y1="4" x2="12" y2="20"></line>
+                </svg>
+              </button>
+              
+              {showFontSizeSlider && (
+                <div className="absolute right-0 top-full mt-2 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg z-20 w-48">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-[var(--text-primary)]">Metin Boyutu</span>
+                      <span className="text-sm text-[var(--text-secondary)]">{messageFontSize}px</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="12" 
+                      max="24" 
+                      value={messageFontSize}
+                      onChange={(e) => setMessageFontSize(parseInt(e.target.value))}
+                      className="w-full accent-[var(--primary)]"
+                    />
+                    <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                      <span>Küçük</span>
+                      <span>Büyük</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
             <button className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]">
               <Pin size={18} />
             </button>
@@ -1215,6 +1375,7 @@ export default function DirectMessagePage() {
               const isSameUser = index > 0 && messages[index - 1].author.id === message.author.id;
               const isRepliedTo = messages.some(m => m.replyTo?.id === message.id);
               const isHidden = hiddenMessages.includes(message.id);
+              const isCurrentUser = message.author.id === currentUserId;
               
               if (isHidden) {
                 return (
@@ -1229,32 +1390,347 @@ export default function DirectMessagePage() {
                 );
               }
               
+              // WhatsApp stili
+              if (messageViewMode === 'whatsapp') {
+                return (
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-3`}
+                    onContextMenu={(e) => handleContextMenu(e, message)}
+                  >
+                    <div className="max-w-[75%]">
+                      {message.replyTo && (
+                        <div className={`mb-1 text-xs bg-[#f0f0f0]/30 p-2 rounded-t ${
+                          isCurrentUser ? 'border-r-2 border-[#4fce5d]' : 'border-l-2 border-[#34b7f1]'
+                        }`}>
+                          <div className="flex items-center gap-1">
+                            <Reply size={12} className="text-[#667781]" />
+                            <span className="font-medium text-[#667781]">
+                              {message.replyTo.author.name}
+                            </span>
+                          </div>
+                          <p className="text-[#667781] line-clamp-1 mt-1">{message.replyTo.content}</p>
+                        </div>
+                      )}
+                      
+                      <div className={`p-2 rounded-lg ${
+                        isCurrentUser 
+                          ? 'bg-[#dcf8c6] text-[#303030] ml-auto' 
+                          : 'bg-white text-[#303030]'
+                      }`}>
+                        <div className="break-words whitespace-pre-wrap">
+                          {renderMessageContent(message.content)}
+                        </div>
+                        
+                        <div className="text-right mt-1">
+                          <span className="text-[10px] text-[#667781]">
+                            {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {showReactionPicker === message.id && (
+                      <div className={`absolute ${isCurrentUser ? 'right-0' : 'left-0'} mt-1 z-10`}>
+                        <ReactionPicker 
+                          messageId={message.id} 
+                          onClose={() => setShowReactionPicker(null)} 
+                        />
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              }
+              
+              // Modern stili
+              if (messageViewMode === 'modern') {
+                return (
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="my-4 px-2 relative group"
+                    onContextMenu={(e) => handleContextMenu(e, message)}
+                  >
+                    <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} items-start`}>
+                      {!isCurrentUser && (
+                        <div className="flex-shrink-0 mr-3 mt-1">
+                          <Image
+                            src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
+                            alt={message.author.name}
+                            width={36}
+                            height={36}
+                            className="rounded-full shadow-md"
+                          />
+                        </div>
+                      )}
+                      <div className={`max-w-[75%]`}>
+                        {!isSameUser && (
+                          <div className={`text-xs mb-1 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
+                            <span className="font-medium text-[var(--text-secondary)] mr-2">
+                              {message.author.name}
+                            </span>
+                            <span className="text-[var(--text-muted)]">
+                              {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {message.replyTo && (
+                          <div className={`mb-2 text-xs bg-[var(--card)]/10 p-2 rounded border-l-2 ${
+                            isCurrentUser 
+                              ? 'bg-[var(--primary)]/10 border-[var(--primary)] ml-auto text-right' 
+                              : 'bg-[var(--text-secondary)]/10 border-[var(--text-secondary)]'
+                          }`}>
+                            <div className="flex items-center gap-1 mb-1">
+                              <Reply size={12} className="text-[var(--text-secondary)]" />
+                              <span className="font-medium text-[var(--text-secondary)]">
+                                {message.replyTo.author.name}
+                              </span>
+                            </div>
+                            <p className="text-[var(--text-secondary)] line-clamp-2">{message.replyTo.content}</p>
+                          </div>
+                        )}
+                        
+                        <div className={`rounded-2xl px-4 py-3 shadow-sm ${
+                          isCurrentUser 
+                            ? 'bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] text-white' 
+                            : 'bg-[var(--card)] text-[var(--text-primary)]'
+                        }`} style={{ fontSize: `${messageFontSize}px` }}>
+                          {renderMessageContent(message.content)}
+                        </div>
+                        
+                        {message.reactions && message.reactions.length > 0 && (
+                          <div className={`flex flex-wrap gap-1 mt-1 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                            {message.reactions.map((reaction) => {
+                              const hasReacted = reaction.users.includes(currentUserId);
+                              const emojiHtml = emojiCodeToHtml(reaction.emoji, emojiCategories);
+                              
+                              return (
+                                <button
+                                  key={reaction.emoji}
+                                  onClick={() => handleAddReaction(message.id, reaction.emoji)}
+                                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
+                                    hasReacted 
+                                      ? 'bg-[var(--primary)]/20 text-[var(--primary)]' 
+                                      : 'bg-[var(--card)] text-[var(--text-secondary)]'
+                                  }`}
+                                >
+                                  <span dangerouslySetInnerHTML={{ __html: emojiHtml }} className="w-3 h-3" />
+                                  <span className="font-medium">{reaction.count}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      {isCurrentUser && (
+                        <div className="flex-shrink-0 ml-3 mt-1">
+                          <Image
+                            src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
+                            alt={message.author.name}
+                            width={36}
+                            height={36}
+                            className="rounded-full shadow-md"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className={`mt-1 flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        <button 
+                          onClick={() => handleReply(message)}
+                          className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
+                          title="Yanıtla"
+                        >
+                          <Reply size={12} />
+                        </button>
+                        <button 
+                          onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
+                          className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
+                          title="Reaksiyon Ekle"
+                        >
+                          <Smile size={12} />
+                        </button>
+                        <button 
+                          onClick={(e) => handleMoreClick(e, message.id)}
+                          className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
+                          title="Daha Fazla"
+                        >
+                          <MoreVertical size={12} />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {showReactionPicker === message.id && (
+                      <div className="absolute left-1/2 bottom-0 transform -translate-x-1/2 translate-y-full mt-1 z-10">
+                        <ReactionPicker 
+                          messageId={message.id} 
+                          onClose={() => setShowReactionPicker(null)} 
+                        />
+                      </div>
+                    )}
+                    <MoreMenu messageId={message.id} />
+                  </motion.div>
+                );
+              }
+
+              // Baloncuklar stili
+              if (messageViewMode === 'bubbles') {
+                return (
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`group flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-3 relative`}
+                    onContextMenu={(e) => handleContextMenu(e, message)}
+                  >
+                    {!isCurrentUser && (!isSameUser || true) && (
+                      <Image
+                        src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
+                        alt={message.author.name}
+                        width={28}
+                        height={28}
+                        className="rounded-full mr-2 self-end mb-1 flex-shrink-0"
+                      />
+                    )}
+                    <div className="flex flex-col max-w-[75%]">
+                      {!isSameUser && (
+                        <div className={`text-xs mb-1 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
+                          <span className={`font-medium ${isCurrentUser ? 'text-[var(--primary)]' : 'text-[var(--text-secondary)]'}`}>
+                            {message.author.name}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {message.replyTo && (
+                        <div className={`mb-2 text-xs bg-white/5 p-1.5 rounded ${isCurrentUser ? 'rounded-tr-none ml-auto' : 'rounded-tl-none'} max-w-[100%]`}>
+                          <p className="text-[var(--text-secondary)] line-clamp-1">
+                            <span className="font-medium text-[var(--text-primary)] mr-1">
+                              {message.replyTo.author.name}:
+                            </span>
+                            {message.replyTo.content}
+                          </p>
+                        </div>
+                      )}
+                      
+                      <div className={`rounded-2xl px-3 py-2 ${
+                        isCurrentUser 
+                          ? 'bg-[var(--primary)] text-white rounded-tr-none ml-auto' 
+                          : 'bg-[var(--card)] text-[var(--text-primary)] rounded-tl-none'
+                      } max-w-full shadow-sm relative`} style={{ fontSize: `${messageFontSize}px` }}>
+                        <div className="break-words whitespace-pre-wrap">
+                          {renderMessageContent(message.content)}
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-[10px] ${isCurrentUser ? 'text-white/70' : 'text-[var(--text-secondary)]'}`}>
+                            {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {message.reactions && message.reactions.length > 0 && (
+                        <div className={`flex flex-wrap gap-1 mt-1 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                          {message.reactions.map((reaction) => {
+                            const hasReacted = reaction.users.includes(currentUserId);
+                            const emojiHtml = emojiCodeToHtml(reaction.emoji, emojiCategories);
+                            
+                            return (
+                              <button
+                                key={reaction.emoji}
+                                onClick={() => handleAddReaction(message.id, reaction.emoji)}
+                                className="bg-[var(--card)] rounded-full h-5 min-w-5 flex items-center justify-center px-1"
+                              >
+                                <span dangerouslySetInnerHTML={{ __html: emojiHtml }} className="w-3 h-3" />
+                                <span className="text-[10px] ml-1">{reaction.count}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {isCurrentUser && (!isSameUser || true) && (
+                      <Image
+                        src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
+                        alt={message.author.name}
+                        width={28}
+                        height={28}
+                        className="rounded-full ml-2 self-end mb-1 flex-shrink-0"
+                      />
+                    )}
+                    
+                    <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity right-0 bottom-0 flex items-center gap-0.5 bg-[var(--card)]/80 backdrop-blur-sm rounded-full p-0.5 shadow-sm translate-y-1/2">
+                      <button 
+                        onClick={() => handleReply(message)}
+                        className="p-1 rounded-full hover:bg-[var(--card)] text-[var(--text-secondary)]" 
+                        title="Yanıtla"
+                      >
+                        <Reply size={10} />
+                      </button>
+                      <button 
+                        onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
+                        className="p-1 rounded-full hover:bg-[var(--card)] text-[var(--text-secondary)]" 
+                        title="Reaksiyon Ekle"
+                      >
+                        <Smile size={10} />
+                      </button>
+                    </div>
+                    
+                    {showReactionPicker === message.id && (
+                      <div className={`absolute ${isCurrentUser ? 'right-0' : 'left-0'} mt-1 z-10`}>
+                        <ReactionPicker 
+                          messageId={message.id} 
+                          onClose={() => setShowReactionPicker(null)} 
+                        />
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              }
+
+              // Discord stili (varsayılan)
               return (
                 <motion.div
                   key={message.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  style={{ marginTop: isSameUser ? 1 : 16 }}
-                  className={`group flex gap-2 sm:gap-4 hover:bg-white/5 p-1 rounded-lg -mx-2 relative`}
+                  className={`group flex items-start gap-3 px-6 py-2 hover:bg-[var(--card)]/30 rounded-md ${
+                    isSameUser ? 'mt-0.5 pt-0.5' : 'mt-2 pt-2'
+                  }`}
                   onContextMenu={(e) => handleContextMenu(e, message)}
                 >
-                  {!isSameUser && (
-                    <div className="flex-shrink-0">
+                  {/* Her zaman aynı hizada kalması için PP boşluğu */}
+                  <div className="flex-shrink-0 w-10 h-10">
+                    {!isSameUser ? (
                       <Image
                         src={message.author.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&q=80'}
                         alt={message.author.name}
-                        width={32}
-                        height={32}
-                        className="rounded-full w-8 h-8 sm:w-10 sm:h-10"
+                        width={40}
+                        height={40}
+                        className="rounded-full"
                       />
-                    </div>
-                  )}
-                  <div className={`flex-1 min-w-0 ${isSameUser ? 'ml-12 sm:ml-14' : ''}`}>
+                    ) : (
+                      <div className="w-10 h-10"></div>
+                    )}
+                  </div>
+                  
+                  <div className="flex-1">
                     {!isSameUser && (
-                      <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-1">
-                        <span className="font-medium text-sm sm:text-base text-[var(--text-primary)]">
-                          {message.author.name}
-                        </span>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-[var(--text-primary)]">{message.author.name}</span>
                         <span className="text-xs text-[var(--text-secondary)]">
                           {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
                             hour: '2-digit',
@@ -1263,30 +1739,31 @@ export default function DirectMessagePage() {
                         </span>
                       </div>
                     )}
+                    
                     {message.replyTo && (
-                      <div className="mb-2 text-xs bg-white/5 p-2 rounded-lg border-l-2 border-[var(--primary)]">
-                        <div className="flex items-center gap-1 mb-1">
+                      <div className="mb-2 bg-[var(--card)]/30 p-2 rounded-md border-l-2 border-[var(--primary)] max-w-[85%]">
+                        <div className="flex items-center gap-1 mb-0.5">
                           <Reply size={12} className="text-[var(--text-secondary)]" />
-                          <span className="font-medium text-[var(--text-primary)]">
-                            {message.replyTo.author.name}
+                          <span className="text-xs font-medium text-[var(--text-secondary)]">
+                            @{message.replyTo.author.name}
                           </span>
                         </div>
-                        <p className="text-[var(--text-secondary)] line-clamp-2">{message.replyTo.content}</p>
+                        <p className="text-sm text-[var(--text-secondary)] line-clamp-1">
+                          {message.replyTo.content}
+                        </p>
                       </div>
                     )}
-                  
-                    {/* GIF mesajlarını göster */}
-                    <div className={`rounded-lg ${
-                      message.author.id === currentUserId
-                        ? 'text-white'
-                        : 'bg-gray-100/10 text-white'
-                    }`}>
+                    
+                    <div className={`px-3 py-1.5 rounded-md ${
+                      isCurrentUser 
+                        ? 'text-[var(--text-primary)]' 
+                        : 'bg-[var(--card)]/60 text-[var(--text-primary)]'
+                    } break-words whitespace-pre-wrap max-w-[90%]`} style={{ fontSize: `${messageFontSize}px` }}>
                       {renderMessageContent(message.content)}
                     </div>
                     
-                    {/* Reaksiyonlar */}
                     {message.reactions && message.reactions.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
+                      <div className="flex flex-wrap gap-1 mt-2">
                         {message.reactions.map((reaction) => {
                           const hasReacted = reaction.users.includes(currentUserId);
                           const emojiHtml = emojiCodeToHtml(reaction.emoji, emojiCategories);
@@ -1295,13 +1772,13 @@ export default function DirectMessagePage() {
                             <button
                               key={reaction.emoji}
                               onClick={() => handleAddReaction(message.id, reaction.emoji)}
-                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all duration-200 ${
+                              className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs ${
                                 hasReacted 
-                                  ? 'bg-[var(--primary)]/20 text-[var(--primary)] hover:bg-[var(--primary)]/30' 
-                                  : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'
+                                  ? 'bg-[var(--primary)]/20 text-[var(--primary)]' 
+                                  : 'bg-[var(--card)] text-[var(--text-secondary)]'
                               }`}
                             >
-                              <span dangerouslySetInnerHTML={{ __html: emojiHtml }} className="w-4 h-4 flex items-center justify-center" />
+                              <span dangerouslySetInnerHTML={{ __html: emojiHtml }} className="w-4 h-4" />
                               <span className="font-medium">{reaction.count}</span>
                             </button>
                           );
@@ -1309,44 +1786,41 @@ export default function DirectMessagePage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-start gap-0.5 sm:gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 flex-shrink-0">
                     <button 
                       onClick={() => handleReply(message)}
-                      className="p-1 rounded hover:bg-white/5 text-[var(--text-secondary)]" 
+                      className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
                       title="Yanıtla"
                     >
-                      <Reply size={14} className="sm:w-4 sm:h-4" />
+                      <Reply size={14} />
                     </button>
-                  
-                    {/* Reaksiyon Ekleme Butonu */}
-                    <div className="relative">
-                      <button 
-                        onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
-                        className="p-1 rounded hover:bg-white/5 text-[var(--text-secondary)]" 
-                        title="Reaksiyon Ekle"
-                      >
-                        <Smile size={14} className="sm:w-4 sm:h-4" />
-                      </button>
-                      {showReactionPicker === message.id && (
-                        <ReactionPicker 
-                          messageId={message.id} 
-                          onClose={() => setShowReactionPicker(null)} 
-                        />
-                      )}
-                    </div>
-
-                    {/* More Menu Button */}
-                    <div className="relative">
-                      <button 
-                        onClick={(e) => handleMoreClick(e, message.id)}
-                        className="p-1 rounded hover:bg-white/5 text-[var(--text-secondary)]" 
-                        title="Daha Fazla"
-                      >
-                        <MoreVertical size={14} className="sm:w-4 sm:h-4" />
-                      </button>
-                      <MoreMenu messageId={message.id} />
-                    </div>
+                    <button 
+                      onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
+                      className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
+                      title="Reaksiyon Ekle"
+                    >
+                      <Smile size={14} />
+                    </button>
+                    <button 
+                      onClick={(e) => handleMoreClick(e, message.id)}
+                      className="p-1 rounded hover:bg-[var(--card)] text-[var(--text-secondary)]" 
+                      title="Daha Fazla"
+                    >
+                      <MoreVertical size={14} />
+                    </button>
                   </div>
+                  
+                  {showReactionPicker === message.id && (
+                    <div className="absolute left-1/2 transform -translate-x-1/2 translate-y-16 z-10">
+                      <ReactionPicker 
+                        messageId={message.id} 
+                        onClose={() => setShowReactionPicker(null)} 
+                      />
+                    </div>
+                  )}
+                  
+                  <MoreMenu messageId={message.id} />
                 </motion.div>
               );
             })
@@ -1377,7 +1851,7 @@ export default function DirectMessagePage() {
               </button>
             </div>
           )}
-          <div className="flex items-center gap-1 sm:gap-2 bg-[var(--card)] rounded-lg p-1.5 sm:p-2">
+          <div className="flex items-start gap-1 sm:gap-2 bg-[var(--card)] rounded-lg p-1.5 sm:p-2">
             <input
               type="file"
               ref={fileInputRef}
@@ -1402,8 +1876,9 @@ export default function DirectMessagePage() {
                 }
               }}
               placeholder={`Mesajınızı yazın...`}
-              className="flex-1 bg-transparent border-none outline-none text-sm sm:text-base text-[var(--text-primary)] placeholder-[var(--text-secondary)] resize-none min-h-[40px] max-h-[200px] py-2 focus:ring-0"
+              className="flex-1 bg-transparent border-none outline-none text-sm sm:text-base text-[var(--text-primary)] placeholder-[var(--text-secondary)] resize-none min-h-[40px] max-h-[200px] py-2 focus:ring-0 whitespace-pre-wrap break-words"
               rows={1}
+              style={{ wordBreak: 'break-word' }}
               onFocus={(e) => {
                 e.target.style.height = 'auto';
                 e.target.style.height = e.target.scrollHeight + 'px';
