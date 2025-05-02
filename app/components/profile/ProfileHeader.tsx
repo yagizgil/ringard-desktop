@@ -1,11 +1,12 @@
-import { FC, useState } from "react";
+'use client';
+import { FC } from "react";
 import Image from "next/image";
 import { MapPin, Link as LinkIcon, Twitter, BadgeCheck, Globe, Code, Youtube, Shield, Camera, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
+import { useRouter } from 'next/navigation';
 interface Badge {
   id: string;
   name: string;
@@ -17,6 +18,7 @@ interface Badge {
 
 interface ProfileHeaderProps {
   username: string;
+  profile_id: string;
   avatar: string;
   banner: string;
   followers: number;
@@ -28,6 +30,7 @@ interface ProfileHeaderProps {
 
 const ProfileHeader: FC<ProfileHeaderProps> = ({
   username,
+  profile_id,
   avatar,
   banner,
   followers,
@@ -36,6 +39,7 @@ const ProfileHeader: FC<ProfileHeaderProps> = ({
   lastSeen,
   badges = [],
 }) => {
+  const router = useRouter();
   return (
     <div className="relative rounded-2xl overflow-hidden bg-card border border-white/10 shadow-lg">
       {/* Banner */}
@@ -135,10 +139,22 @@ const ProfileHeader: FC<ProfileHeaderProps> = ({
               </div>
             </div>
 
-            <p className="text-muted-foreground text-sm max-w-2xl">
-              Merhaba! Ben bir oyun geliştiricisiyim ve aynı zamanda yayıncılık yapıyorum. 
-              Yeni oyunlar keşfetmeyi, geliştirmeyi ve toplulukla paylaşmayı seviyorum.
-            </p>
+            <div className="grid grid-cols-12">
+              <div className="col-span-9">
+                <p className="text-muted-foreground text-sm max-w-2xl">
+                  Merhaba! Ben bir oyun geliştiricisiyim ve aynı zamanda yayıncılık yapıyorum. 
+                  Yeni oyunlar keşfetmeyi, geliştirmeyi ve toplulukla paylaşmayı seviyorum.
+                </p>
+              </div>
+              <div className="col-span-3">
+                <button
+                  onClick={() => router.push(`/direct/${profile_id}`)}
+                  className="ml-auto bg-[var(--primary)] text-white text-sm font-medium px-4 py-2 rounded-full hover:bg-orange-500/30 hover:backdrop-blur-lg hover:rounded-lg duration-500 transition-all"
+                >
+                  Mesaj Gönder
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

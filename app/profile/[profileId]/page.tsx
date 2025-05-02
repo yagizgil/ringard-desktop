@@ -73,7 +73,7 @@ export default function ProfilePage() {
           return;
         }
 
-        const response = await fetch(`http://localhost:8021/user/profile/${profileId}`, {
+        const response = await fetch(process.env.NEXT_PUBLIC_API_BASE_URL+`/user/profile/${profileId}`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`
           }
@@ -207,6 +207,7 @@ export default function ProfilePage() {
         <div className="container max-w-6xl mx-auto px-4">
           <ProfileHeader
             username={profile.username}
+            profile_id={profile.id}
             avatar={avatarUrl}
             banner={bannerUrl}
             followers={0} // These values would come from additional API calls

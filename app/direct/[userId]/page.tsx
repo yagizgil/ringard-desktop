@@ -355,7 +355,7 @@ export default function DirectMessagePage() {
               if (dmData.type === 'gif') {
                 messageContent = `dm:${JSON.stringify({
                   type: 'gif',
-                  content: dmData.content
+                  content: decryptedContent
                 })}`;
               } else {
                 messageContent = decryptedContent || 'Mesaj çözülemedi';
@@ -967,11 +967,12 @@ export default function DirectMessagePage() {
         const gifData = JSON.parse(jsonContent);
         
         if (gifData.type === 'gif' && gifData.content) {
+          const parsedContent = JSON.parse(gifData.content);
           return (
             <div className="my-1 max-w-full">
               <img 
-                src={gifData.content} 
-                alt={gifData.alt || 'GIF'} 
+                src={parsedContent.content} 
+                alt={parsedContent.alt || parsedContent} 
                 className="rounded-lg max-w-full h-auto"
                 loading="lazy"
               />
@@ -1124,7 +1125,7 @@ export default function DirectMessagePage() {
 
     return (
       <div 
-        className="fixed z-50 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg py-1 min-w-[200px] backdrop-blur-sm bg-opacity-95"
+        className="fixed z-50 bg-black/60 rounded-lg shadow-lg py-1 min-w-[200px] backdrop-blur-lg bg-opacity-95"
         style={{ 
           top: contextMenu.y, 
           left: contextMenu.x,
@@ -1136,44 +1137,44 @@ export default function DirectMessagePage() {
         <div className="flex flex-col gap-1">
           <button 
             onClick={() => handleReply(contextMenu.message)}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="group flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors duration-300"
           >
-            <Reply size={16} />
+            <Reply size={16} className="group-hover:text-orange-500 duration-300"/>
             Yanıtla
           </button>
           <button 
             onClick={() => setShowReactionPicker(contextMenu.message.id)}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="group flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors duration-300"
           >
-            <Smile size={16} />
+            <Smile size={16} className="group-hover:text-orange-500 duration-300"/>
             Tepki Ekle
           </button>
           <button 
             onClick={() => handleViewProfile(contextMenu.message.author.name)}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="group flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors duration-300"
           >
-            <User size={16} />
+            <User size={16} className="group-hover:text-orange-500 duration-300"/>
             Profili Gör
           </button>
           <button 
             onClick={handleAddFriend}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="group flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 hover:text-blue-400 text-[var(--text-primary)] transition-colors duration-300"
           >
-            <UserPlus size={16} />
+            <UserPlus size={16} className="group-hover:text-blue-400 duration-300" />
             Arkadaş Ekle
           </button>
           <button 
             onClick={() => handleReport(contextMenu.message)}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-red-500 transition-colors duration-300"
           >
             <Flag size={16} />
             Raporla
           </button>
           <button 
             onClick={() => handleHideMessage(contextMenu.message.id)}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="group flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors duration-300"
           >
-            {hiddenMessages.includes(contextMenu.message.id) ? <Eye size={16} /> : <EyeOff size={16} />}
+            {hiddenMessages.includes(contextMenu.message.id) ? <Eye size={16} className="group-hover:text-orange-500"/> : <EyeOff size={16} className="group-hover:text-orange-500 duration-300"/>}
             {hiddenMessages.includes(contextMenu.message.id) ? 'Göster' : 'Gizle'}
           </button>
         </div>
@@ -1186,55 +1187,69 @@ export default function DirectMessagePage() {
     if (showMoreMenu !== messageId) return null;
 
     return (
-      <div 
-        className="absolute right-0 top-6 z-50 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg py-1 min-w-[200px] backdrop-blur-sm bg-opacity-95"
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
+        className="absolute right-0 top-6 z-50 rounded-xl py-2"
+        onClick={(e) => e.stopPropagation()}
+      >
+
+        <div 
+        className="z-50 bg-black/60 rounded-lg shadow-lg py-1 min-w-[200px] backdrop-blur-lg bg-opacity-95"
+        style={{ 
+          transform: 'translateY(-100%)',
+          marginTop: '-8px'
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col gap-1">
           <button 
             onClick={() => handleReply(messages.find(m => m.id === messageId)!)}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="group/btn flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors duration-300"
           >
-            <Reply size={16} />
+            <Reply size={16} className="group-hover/btn:text-orange-500 duration-300"/>
             Yanıtla
           </button>
           <button 
             onClick={() => setShowReactionPicker(messageId)}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="group/btn flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors duration-300"
           >
-            <Smile size={16} />
+            <Smile size={16} className="group-hover/btn:text-orange-500 duration-300"/>
             Tepki Ekle
           </button>
           <button 
             onClick={() => handleViewProfile(messages.find(m => m.id === messageId)!.author.name)}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="group/btn flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors duration-300"
           >
-            <User size={16} />
+            <User size={16} className="group-hover/btn:text-orange-500 duration-300"/>
             Profili Gör
           </button>
           <button 
             onClick={handleAddFriend}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="group/btn flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 hover:text-blue-400 text-[var(--text-primary)] transition-colors duration-300"
           >
-            <UserPlus size={16} />
+            <UserPlus size={16} className="group-hover/btn:text-blue-400 duration-300" />
             Arkadaş Ekle
           </button>
           <button 
             onClick={() => handleReport(messages.find(m => m.id === messageId)!)}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-red-500 transition-colors duration-300"
           >
             <Flag size={16} />
             Raporla
           </button>
           <button 
             onClick={() => handleHideMessage(messageId)}
-            className="flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors"
+            className="group/btn flex items-center gap-2 w-full px-4 py-2 hover:bg-white/5 text-[var(--text-primary)] transition-colors duration-300"
           >
-            {hiddenMessages.includes(messageId) ? <Eye size={16} /> : <EyeOff size={16} />}
+            {hiddenMessages.includes(messageId) ? <Eye size={16} className="group-hover/btn:text-orange-500"/> : <EyeOff size={16} className="group-hover/btn:text-orange-500 duration-300"/>}
             {hiddenMessages.includes(messageId) ? 'Göster' : 'Gizle'}
           </button>
         </div>
       </div>
+      </motion.div>
     );
   };
 
@@ -1303,7 +1318,7 @@ export default function DirectMessagePage() {
                   if (dmData.type === 'gif') {
                     messageContent = `dm:${JSON.stringify({
                       type: 'gif',
-                      content: dmData.content
+                      content: decryptedContent
                     })}`;
                   } else {
                     messageContent = decryptedContent || 'Mesaj çözülemedi';
@@ -1456,9 +1471,8 @@ export default function DirectMessagePage() {
                 onChange={(e) => updateMessageViewMode(e.target.value as 'discord' | 'whatsapp' | 'bubbles' | 'modern')}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               >
-                <option value="discord">Discord Stili</option>
-                <option value="whatsapp">WhatsApp Stili</option>
-                <option value="bubbles">Baloncuklar</option>
+                <option value="discord">Classic</option>
+                <option value="bubbles">Baloncuk</option>
                 <option value="modern">Modern</option>
               </select>
             </div>
@@ -1467,7 +1481,7 @@ export default function DirectMessagePage() {
               <button 
                 ref={fontSizeButtonRef}
                 onClick={() => setShowFontSizeSlider(!showFontSizeSlider)}
-                className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
+                className="p-1.5 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]"
                 title="Metin Boyutu"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1504,7 +1518,7 @@ export default function DirectMessagePage() {
               )}
             </div>
             
-            <button className="p-1.5 sm:p-2 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]">
+            <button className="p-1.5 hover:bg-white/5 rounded-lg transition-colors text-[var(--text-secondary)]">
               <Pin size={18} />
             </button>
             <div className="h-5 w-[1px] bg-white/5 mx-0.5 sm:mx-1 hidden sm:block" />
@@ -1659,7 +1673,7 @@ export default function DirectMessagePage() {
                 }
               }}
               placeholder={`Mesajınızı yazın...`}
-              className="flex-1 bg-transparent border-none outline-none text-sm sm:text-base text-[var(--text-primary)] placeholder-[var(--text-secondary)] resize-none min-h-[40px] max-h-[200px] py-2 focus:ring-0 whitespace-pre-wrap break-words"
+              className="flex-1 bg-transparent border-none outline-none text-sm sm:text-base text-[var(--text-primary)] placeholder-[var(--text-secondary)] resize-none min-h-[40px] max-h-[400px] py-2 focus:ring-0 whitespace-pre-wrap break-words"
               rows={1}
               style={{ wordBreak: 'break-word' }}
               onFocus={(e) => {
