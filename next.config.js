@@ -6,6 +6,7 @@ const internalHost = process.env.TAURI_DEV_HOST || 'localhost';
 
 
 const nextConfig = {
+  // output: 'export',
   images: {
     remotePatterns: [
       {
@@ -46,7 +47,6 @@ const nextConfig = {
       }
     ],
   },
-  /**output: 'export',*/
   assetPrefix: isProd ? undefined : `http://${internalHost}:3000`
 }
 
